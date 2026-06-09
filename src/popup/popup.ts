@@ -1,30 +1,139 @@
-import { StashManager, type Stash } from "../storage/stashManager";
+import {
+StashManager,
+type Stash
+} from "../storage/stashManager";
 
-const saveBtn = document.getElementById("saveBtn") as HTMLButtonElement;
+const titleInput =
+document.getElementById(
+"title"
+) as HTMLInputElement;
 
-saveBtn?.addEventListener("click", async () => {
+const contentInput =
+document.getElementById(
+"content"
+) as HTMLTextAreaElement;
+
+const saveBtn =
+document.getElementById(
+"saveBtn"
+) as HTMLButtonElement;
+
+const stashList =
+document.getElementById(
+"stashList"
+) as HTMLDivElement;
+
+initialize();
+
+async function initialize() {
+await renderStashes();
+}
+
+saveBtn.addEventListener(
+"click",
+async () => {
+
+const title =
+  titleInput.value.trim();
+
+const text =
+  contentInput.value.trim();
+
+if (!title || !text) {
+  alert(
+    "Please enter title and content."
+  );
+  return;
+}
 
 const stash: Stash = {
-id: crypto.randomUUID(),
-title: "Test",
-text: "Test Content",
-autoTrigger: "",
-tags: [],
-favorite: false,
-usageCount: 0,
-timestamp: Date.now(),
-versions: [
-{
-version: 1,
-text: "Test Content",
-createdAt: Date.now()
-}
-]
+  id: crypto.randomUUID(),
+
+  title,
+
+  text,
+
+  autoTrigger: "",
+
+  tags: [],
+
+  favorite: false,
+
+  usageCount: 0,
+
+  timestamp: Date.now(),
+
+  versions: [
+    {
+      version: 1,
+      text,
+      createdAt: Date.now()
+    }
+  ]
 };
 
-await StashManager.save(stash);
+await StashManager.save(
+  stash
+);
 
-alert("Saved Successfully");
+titleInput.value = "";
+contentInput.value = "";
+
+await renderStashes();
+
+alert("Stash Saved!");
 });
 
-console.log("Popup Loaded");
+async function renderStashes() {
+
+const stashes =
+  await StashManager.getAll();
+
+stashList.innerHTML = "";
+
+stashes.forEach((stash) => {
+
+  const card =
+    document.createElement("div");
+
+  card.className =
+    "stash-card";
+
+  card.innerHTML = `
+    <div class="stash-title">
+      ${escapeHtml(stash.title)}
+    </div>
+
+    <div class="stash-content">
+      ${escapeHtml(
+        stash.text
+      )}
+    </div>
+  `;
+
+  stashList.appendChild(
+    card
+  );
+}
+
+);
+}
+
+function escapeHtml(
+text: string
+): string {
+
+return text
+.replace(
+/&/g,
+"&"
+)
+.replace(
+/</g,
+"<"
+)
+.replace(
+/>/g,
+">"
+);
+}

@@ -153,18 +153,7 @@ max-height: 300px;
 overflow-y: auto;
 }
 
-.stash-card {
-background: #1e293b;
-border: 1px solid #334155;
-border-radius: 10px;
-padding: 10px;
-margin-bottom: 8px;
-}
 
-.stash-title {
-font-weight: 600;
-font-size: 14px;
-}
 
 .stash-tags {
 margin-top: 4px;

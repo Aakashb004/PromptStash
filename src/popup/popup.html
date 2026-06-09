@@ -33,90 +33,21 @@
 
     </section>
 
-    <!-- Create Stash Form -->
-    <section class="form-section">
+    <input id="title" type="text" placeholder="Title">
 
-      <h3>Create Stash</h3>
+<textarea
+  id="content"
+  rows="5"
+  placeholder="Prompt content">
+</textarea>
 
-      <input
-        id="title"
-        type="text"
-        placeholder="Stash Title (e.g. Python Expert)"
-      >
+<button id="saveBtn">
+  Save Stash
+</button>
 
-      <textarea
-        id="content"
-        rows="5"
-        placeholder="Enter prompt content..."
-      ></textarea>
+<hr>
 
-      <input
-        id="autoTrigger"
-        type="text"
-        placeholder="Auto Trigger Keyword (optional)"
-      >
-
-      <input
-        id="tags"
-        type="text"
-        placeholder="Tags (python, backend, react)"
-      >
-
-      <label class="favorite-row">
-
-        <input
-          id="favorite"
-          type="checkbox"
-        >
-
-        <span>Mark as Favorite</span>
-
-      </label>
-
-      <button id="saveBtn">
-        Save Stash
-      </button>
-
-    </section>
-
-    <!-- Backup Actions -->
-    <section class="actions">
-
-      <button id="exportBtn">
-        Export Backup
-      </button>
-
-      <button id="importBtn">
-        Import Backup
-      </button>
-
-      <input
-        hidden
-        type="file"
-        id="importFile"
-        accept=".json"
-      >
-
-    </section>
-
-    <!-- Divider -->
-    <hr>
-
-    <!-- Saved Stashes -->
-    <section>
-
-      <h3>Saved Stashes</h3>
-
-      <div
-        id="stashList"
-        class="stash-list"
-      >
-
-        <!-- Dynamic Content -->
-
-      </div>
-
-    </section>
+<div id="stashList"></div>
 
   </div>
 
