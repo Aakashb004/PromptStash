@@ -1,61 +1,30 @@
-import {
-  StashManager
-} from "../storage/stashManager";
+import { StashManager, type Stash } from "../storage/stashManager";
 
-const testBtn =
-document.getElementById(
-  "testBtn"
-);
+const saveBtn = document.getElementById("saveBtn") as HTMLButtonElement;
 
-testBtn?.addEventListener(
-  "click",
-  async () => {
+saveBtn?.addEventListener("click", async () => {
 
-    await StashManager.save({
+const stash: Stash = {
+id: crypto.randomUUID(),
+title: "Test",
+text: "Test Content",
+autoTrigger: "",
+tags: [],
+favorite: false,
+usageCount: 0,
+timestamp: Date.now(),
+versions: [
+{
+version: 1,
+text: "Test Content",
+createdAt: Date.now()
+}
+]
+};
 
-      id:
-        crypto.randomUUID(),
+await StashManager.save(stash);
 
-      title:
-        "Test Stash",
+alert("Saved Successfully");
+});
 
-      text:
-        "Hello PromptStash",
-
-      autoTrigger:
-        "",
-
-      tags: [],
-
-      favorite:
-        false,
-
-      usageCount:
-        0,
-
-      timestamp:
-        Date.now(),
-
-      versions: [
-        {
-          version: 1,
-          text:
-            "Hello PromptStash",
-          createdAt:
-            Date.now()
-        }
-      ]
-    });
-
-    const stashes =
-      await StashManager.getAll();
-
-    console.log(
-      stashes
-    );
-
-    alert(
-      "Stash Saved"
-    );
-  }
-);
+console.log("Popup Loaded");

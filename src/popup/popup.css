@@ -1,0 +1,193 @@
+body {
+margin: 0;
+width: 420px;
+min-height: 600px;
+background: #0f172a;
+color: #ffffff;
+font-family: Inter, system-ui, sans-serif;
+}
+
+.container {
+padding: 16px;
+}
+
+header {
+display: flex;
+justify-content: space-between;
+align-items: center;
+margin-bottom: 16px;
+}
+
+header h1 {
+margin: 0;
+font-size: 22px;
+font-weight: 700;
+}
+
+.version {
+color: #94a3b8;
+font-size: 12px;
+background: #1e293b;
+padding: 4px 8px;
+border-radius: 6px;
+}
+
+.stats {
+display: flex;
+gap: 10px;
+margin-bottom: 18px;
+}
+
+.stat-card {
+flex: 1;
+background: #1e293b;
+border: 1px solid #334155;
+border-radius: 12px;
+padding: 12px;
+text-align: center;
+}
+
+.stat-card span {
+display: block;
+font-size: 22px;
+font-weight: bold;
+color: #818cf8;
+}
+
+.stat-card small {
+color: #94a3b8;
+font-size: 12px;
+}
+
+.form-section h3,
+section h3 {
+margin-top: 0;
+margin-bottom: 10px;
+color: #e2e8f0;
+}
+
+input,
+textarea {
+width: 100%;
+box-sizing: border-box;
+padding: 10px;
+margin-bottom: 10px;
+border: 1px solid #334155;
+border-radius: 8px;
+background: #1e293b;
+color: white;
+font-size: 13px;
+}
+
+input:focus,
+textarea:focus {
+outline: none;
+border-color: #6366f1;
+}
+
+textarea {
+resize: vertical;
+min-height: 100px;
+}
+
+.favorite-row {
+display: flex;
+align-items: center;
+gap: 8px;
+margin-bottom: 12px;
+font-size: 13px;
+}
+
+.favorite-row input {
+width: auto;
+margin: 0;
+}
+
+button {
+border: none;
+border-radius: 8px;
+padding: 10px;
+cursor: pointer;
+font-weight: 600;
+transition: 0.2s;
+}
+
+button:hover {
+transform: translateY(-1px);
+}
+
+#saveBtn {
+width: 100%;
+background: #4f46e5;
+color: white;
+}
+
+#saveBtn:hover {
+background: #4338ca;
+}
+
+.actions {
+display: flex;
+gap: 8px;
+margin-top: 12px;
+}
+
+.actions button {
+flex: 1;
+background: #334155;
+color: white;
+}
+
+.actions button:hover {
+background: #475569;
+}
+
+hr {
+border: none;
+border-top: 1px solid #334155;
+margin: 18px 0;
+}
+
+.stash-list {
+max-height: 300px;
+overflow-y: auto;
+}
+
+.stash-card {
+background: #1e293b;
+border: 1px solid #334155;
+border-radius: 10px;
+padding: 10px;
+margin-bottom: 8px;
+}
+
+.stash-title {
+font-weight: 600;
+font-size: 14px;
+}
+
+.stash-tags {
+margin-top: 4px;
+color: #60a5fa;
+font-size: 11px;
+}
+
+.stash-meta {
+margin-top: 4px;
+color: #94a3b8;
+font-size: 11px;
+}
+
+.favorite-badge {
+color: #fbbf24;
+margin-right: 4px;
+}
+
+::-webkit-scrollbar {
+width: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+background: #475569;
+border-radius: 6px;
+}

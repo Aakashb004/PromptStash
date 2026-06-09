@@ -1,21 +1,129 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>PromptStash</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PromptStash PRO</title>
+
+  <link rel="stylesheet" href="./popup.css">
 </head>
+
 <body>
 
-  <h2>PromptStash PRO</h2>
+  <div class="container">
 
-  <button id="testBtn">
-    Test Extension
-  </button>
+    <!-- Header -->
+    <header>
+      <h1>PromptStash PRO</h1>
+      <span class="version">v5</span>
+    </header>
+
+    <!-- Stats -->
+    <section class="stats">
+
+      <div class="stat-card">
+        <span id="totalStashes">0</span>
+        <small>Total Stashes</small>
+      </div>
+
+      <div class="stat-card">
+        <span id="totalUses">0</span>
+        <small>Total Uses</small>
+      </div>
+
+    </section>
+
+    <!-- Create Stash Form -->
+    <section class="form-section">
+
+      <h3>Create Stash</h3>
+
+      <input
+        id="title"
+        type="text"
+        placeholder="Stash Title (e.g. Python Expert)"
+      >
+
+      <textarea
+        id="content"
+        rows="5"
+        placeholder="Enter prompt content..."
+      ></textarea>
+
+      <input
+        id="autoTrigger"
+        type="text"
+        placeholder="Auto Trigger Keyword (optional)"
+      >
+
+      <input
+        id="tags"
+        type="text"
+        placeholder="Tags (python, backend, react)"
+      >
+
+      <label class="favorite-row">
+
+        <input
+          id="favorite"
+          type="checkbox"
+        >
+
+        <span>Mark as Favorite</span>
+
+      </label>
+
+      <button id="saveBtn">
+        Save Stash
+      </button>
+
+    </section>
+
+    <!-- Backup Actions -->
+    <section class="actions">
+
+      <button id="exportBtn">
+        Export Backup
+      </button>
+
+      <button id="importBtn">
+        Import Backup
+      </button>
+
+      <input
+        hidden
+        type="file"
+        id="importFile"
+        accept=".json"
+      >
+
+    </section>
+
+    <!-- Divider -->
+    <hr>
+
+    <!-- Saved Stashes -->
+    <section>
+
+      <h3>Saved Stashes</h3>
+
+      <div
+        id="stashList"
+        class="stash-list"
+      >
+
+        <!-- Dynamic Content -->
+
+      </div>
+
+    </section>
+
+  </div>
 
   <script
     type="module"
-    src="./popup.ts">
-  </script>
+    src="./popup.ts"
+  ></script>
 
 </body>
 </html>
