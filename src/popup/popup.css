@@ -230,3 +230,20 @@ border-radius: 6px;
   border-radius: 5px;
   font-size: 11px;
 }
+
+#searchInput {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 12px;
+}
+
+.favorite-btn {
+  float: right;
+  cursor: pointer;
+  font-size: 18px;
+  user-select: none;
+}
+
+.favorite-btn:hover {
+  transform: scale(1.1);
+}

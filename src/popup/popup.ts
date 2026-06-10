@@ -4,28 +4,45 @@ type Stash
 } from "../storage/stashManager";
 
 const titleInput =
-document.getElementById(
-"title"
-) as HTMLInputElement;
+document.getElementById("title") as HTMLInputElement;
 
 const contentInput =
-document.getElementById(
-"content"
-) as HTMLTextAreaElement;
+document.getElementById("content") as HTMLTextAreaElement;
 
 const saveBtn =
-document.getElementById(
-"saveBtn"
-) as HTMLButtonElement;
+document.getElementById("saveBtn") as HTMLButtonElement;
 
 const stashList =
-document.getElementById(
-"stashList"
-) as HTMLDivElement;
+document.getElementById("stashList") as HTMLDivElement;
+
+const searchInput =
+document.getElementById("searchInput") as HTMLInputElement;
+
+const totalStashes =
+document.getElementById("totalStashes") as HTMLSpanElement;
+
+const totalUses =
+document.getElementById("totalUses") as HTMLSpanElement;
+
+let currentSearch = "";
 
 initialize();
 
 async function initialize() {
+
+searchInput?.addEventListener(
+"input",
+async () => {
+
+  currentSearch =
+    searchInput.value.toLowerCase();
+
+  await renderStashes();
+}
+
+);
+
+await loadStats();
 await renderStashes();
 }
 
@@ -47,7 +64,9 @@ if (!title || !text) {
 }
 
 const stash: Stash = {
-  id: crypto.randomUUID(),
+
+  id:
+    crypto.randomUUID(),
 
   title,
 
@@ -72,110 +91,153 @@ const stash: Stash = {
   ]
 };
 
-await StashManager.save(
-  stash
-);
+await StashManager.save(stash);
 
 titleInput.value = "";
 contentInput.value = "";
 
+await loadStats();
 await renderStashes();
 
 alert("Stash Saved!");
-});
+
+}
+);
 
 async function renderStashes() {
 
-  const stashes =
-    await StashManager.getAll();
+let stashes =
+await StashManager.getAll();
 
-  stashList.innerHTML = "";
+if (currentSearch) {
 
-  const countEl =
-    document.getElementById(
-      "stashCount"
+stashes =
+  stashes.filter(
+    stash =>
+      stash.title
+        .toLowerCase()
+        .includes(currentSearch)
+      ||
+      stash.text
+        .toLowerCase()
+        .includes(currentSearch)
+  );
+
+}
+
+stashList.innerHTML = "";
+
+const countEl =
+document.getElementById(
+"stashCount"
+);
+
+if (countEl) {
+countEl.textContent =
+`${stashes.length} Stashes`;
+}
+
+stashes.forEach((stash) => {
+
+const card =
+  document.createElement("div");
+
+card.className =
+  "stash-card";
+
+const tagsHtml =
+  stash.tags
+    .map(
+      tag =>
+        `<span class="tag">${tag}</span>`
+    )
+    .join("");
+
+card.innerHTML = `
+  <div class="stash-title">
+
+    <span
+      class="favorite-btn"
+      data-id="${stash.id}">
+      ${stash.favorite ? "⭐" : "☆"}
+    </span>
+
+    ${escapeHtml(stash.title)}
+  </div>
+
+  <div class="stash-content">
+    ${escapeHtml(stash.text)}
+  </div>
+
+  <div>
+    ${tagsHtml}
+  </div>
+
+  <button
+    class="delete-btn"
+    data-id="${stash.id}">
+    Delete
+  </button>
+`;
+
+const deleteBtn =
+  card.querySelector(
+    ".delete-btn"
+  ) as HTMLButtonElement;
+
+deleteBtn.addEventListener(
+  "click",
+  async () => {
+
+    await StashManager.delete(
+      stash.id
     );
 
-  if (countEl) {
-    countEl.textContent =
-      `${stashes.length} Stashes`;
+    await loadStats();
+    await renderStashes();
   }
+);
 
-  stashes.forEach((stash) => {
+const favoriteBtn =
+  card.querySelector(
+    ".favorite-btn"
+  ) as HTMLSpanElement;
 
-    const card =
-      document.createElement("div");
+favoriteBtn.addEventListener(
+  "click",
+  async () => {
 
-    card.className =
-      "stash-card";
-
-    const tagsHtml =
-      stash.tags
-        .map(
-          tag =>
-            `<span class="tag">${tag}</span>`
-        )
-        .join("");
-
-    card.innerHTML = `
-      <div class="stash-title">
-        ${stash.favorite ? "⭐ " : ""}
-        ${escapeHtml(stash.title)}
-      </div>
-
-      <div class="stash-content">
-        ${escapeHtml(stash.text)}
-      </div>
-
-      <div>
-        ${tagsHtml}
-      </div>
-
-      <button
-        class="delete-btn"
-        data-id="${stash.id}">
-        Delete
-      </button>
-    `;
-
-    const deleteBtn =
-      card.querySelector(
-        ".delete-btn"
-      ) as HTMLButtonElement;
-
-    deleteBtn.addEventListener(
-      "click",
-      async () => {
-
-        await deleteStash(
-          stash.id
-        );
-
-        await renderStashes();
-      }
+    await StashManager.toggleFavorite(
+      stash.id
     );
 
-    stashList.appendChild(
-      card
-    );
-  });
+    await renderStashes();
+  }
+);
+
+stashList.appendChild(card);
+});
 }
-async function deleteStash(
-  id: string
-) {
 
-  const stashes =
-    await StashManager.getAll();
+async function loadStats() {
 
-  const filtered =
-    stashes.filter(
-      stash => stash.id !== id
-    );
+const stashes =
+await StashManager.getAll();
 
-  await chrome.storage.local.set({
-    capsules: filtered
-  });
+totalStashes.textContent =
+stashes.length.toString();
+
+const usageCount =
+stashes.reduce(
+(sum, stash) =>
+sum + stash.usageCount,
+0
+);
+
+totalUses.textContent =
+usageCount.toString();
 }
+
 function escapeHtml(
 text: string
 ): string {
