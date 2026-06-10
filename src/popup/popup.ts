@@ -55,7 +55,7 @@ const stash: Stash = {
 
   autoTrigger: "",
 
-  tags: [],
+  tags: ["general"],
 
   favorite: false,
 
@@ -86,39 +86,96 @@ alert("Stash Saved!");
 
 async function renderStashes() {
 
-const stashes =
-  await StashManager.getAll();
+  const stashes =
+    await StashManager.getAll();
 
-stashList.innerHTML = "";
+  stashList.innerHTML = "";
 
-stashes.forEach((stash) => {
+  const countEl =
+    document.getElementById(
+      "stashCount"
+    );
 
-  const card =
-    document.createElement("div");
+  if (countEl) {
+    countEl.textContent =
+      `${stashes.length} Stashes`;
+  }
 
-  card.className =
-    "stash-card";
+  stashes.forEach((stash) => {
 
-  card.innerHTML = `
-    <div class="stash-title">
-      ${escapeHtml(stash.title)}
-    </div>
+    const card =
+      document.createElement("div");
 
-    <div class="stash-content">
-      ${escapeHtml(
-        stash.text
-      )}
-    </div>
-  `;
+    card.className =
+      "stash-card";
 
-  stashList.appendChild(
-    card
-  );
+    const tagsHtml =
+      stash.tags
+        .map(
+          tag =>
+            `<span class="tag">${tag}</span>`
+        )
+        .join("");
+
+    card.innerHTML = `
+      <div class="stash-title">
+        ${stash.favorite ? "⭐ " : ""}
+        ${escapeHtml(stash.title)}
+      </div>
+
+      <div class="stash-content">
+        ${escapeHtml(stash.text)}
+      </div>
+
+      <div>
+        ${tagsHtml}
+      </div>
+
+      <button
+        class="delete-btn"
+        data-id="${stash.id}">
+        Delete
+      </button>
+    `;
+
+    const deleteBtn =
+      card.querySelector(
+        ".delete-btn"
+      ) as HTMLButtonElement;
+
+    deleteBtn.addEventListener(
+      "click",
+      async () => {
+
+        await deleteStash(
+          stash.id
+        );
+
+        await renderStashes();
+      }
+    );
+
+    stashList.appendChild(
+      card
+    );
+  });
 }
+async function deleteStash(
+  id: string
+) {
 
-);
+  const stashes =
+    await StashManager.getAll();
+
+  const filtered =
+    stashes.filter(
+      stash => stash.id !== id
+    );
+
+  await chrome.storage.local.set({
+    capsules: filtered
+  });
 }
-
 function escapeHtml(
 text: string
 ): string {
