@@ -27,10 +27,21 @@ const manifest: ManifestV3Export = {
       "src/background/background.ts"
   },
 
-  action: {
-    default_popup:
-      "src/popup/popup.html"
-  },
+  "action": {
+  "default_popup": "src/popup/popup.html",
+  "default_icon": {
+    "16": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  }
+},
+
+"icons": {
+  "16": "icon.png",
+  "48": "icon.png",
+  "128": "icon.png"
+},
+
 
   commands: {
     "trigger-stash": {
