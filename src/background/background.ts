@@ -1,25 +1,19 @@
-chrome.runtime.onInstalled.addListener(() => {
-  console.log("PromptStash PRO Loaded");
+import Browser from "../adapters/browser";
+
+Browser.runtime.onInstalled.addListener(() => {
+  console.log("PromptStash Loaded");
 });
 
-chrome.commands.onCommand.addListener(
-  async (command: string) => {
+Browser.commands.onCommand.addListener(async (command: string) => {
+  const tabs = await Browser.tabs.query({
+    active: true,
+    currentWindow: true,
+  });
 
-    const tabs =
-      await chrome.tabs.query({
-        active: true,
-        currentWindow: true
-      });
+  const tab = tabs[0];
+  if (!tab?.id) return;
 
-    const tab = tabs[0];
-
-    if (!tab?.id) return;
-
-    chrome.tabs.sendMessage(
-      tab.id,
-      {
-        action: command
-      }
-    );
-  }
-);
+  Browser.tabs.sendMessage(tab.id, {
+    action: command,
+  });
+});

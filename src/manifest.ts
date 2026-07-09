@@ -3,7 +3,7 @@ import type { ManifestV3Export } from "@crxjs/vite-plugin";
 const manifest: ManifestV3Export = {
   manifest_version: 3,
 
-  name: "PromptStash PRO",
+  name: "PromptStash",
 
   version: "5.0.0",
 
@@ -17,9 +17,8 @@ const manifest: ManifestV3Export = {
   ],
 
   host_permissions: [
-    "https://chatgpt.com/*",
-    "https://claude.ai/*",
-    "https://gemini.google.com/*"
+    "http://*/*",
+    "https://*/*"
   ],
 
   background: {
@@ -64,9 +63,8 @@ const manifest: ManifestV3Export = {
   content_scripts: [
     {
       matches: [
-        "https://chatgpt.com/*",
-        "https://claude.ai/*",
-        "https://gemini.google.com/*"
+        "http://*/*",
+        "https://*/*"
       ],
 
       js: [
