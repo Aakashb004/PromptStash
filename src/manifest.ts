@@ -13,7 +13,8 @@ const manifest: ManifestV3Export = {
   permissions: [
     "storage",
     "activeTab",
-    "downloads"
+    "downloads",
+    "clipboardRead"
   ],
 
   host_permissions: [

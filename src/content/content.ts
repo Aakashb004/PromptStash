@@ -1,6 +1,7 @@
 import Browser from "../adapters/browser";
 import { StashManager } from "../storage/stashManager";
 import { Stash } from "../types";
+import { PackagingEngine } from "../utils/packagingEngine";
 
 console.log("PromptStash AI Integration Service Active");
 
@@ -217,6 +218,78 @@ const PALETTE_CSS = `
     border-radius: 6px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.5);
     animation: psFadeIn 0.15s ease;
+  }
+  .ps-form {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow-y: auto;
+    height: 100%;
+    max-height: 380px;
+  }
+  .ps-form-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #f8fafc;
+    margin-bottom: 4px;
+  }
+  .ps-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .ps-form-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .ps-form-input {
+    background: #0f172a;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #f8fafc;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    transition: all 0.15s ease;
+  }
+  .ps-form-input:focus {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+  }
+  .ps-form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .ps-btn {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    border: none;
+    font-family: inherit;
+    transition: all 0.15s ease;
+  }
+  .ps-btn-primary {
+    background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+    color: #ffffff;
+  }
+  .ps-btn-primary:hover {
+    opacity: 0.9;
+  }
+  .ps-btn-secondary {
+    background: transparent;
+    color: #64748b;
+  }
+  .ps-btn-secondary:hover {
+    color: #f8fafc;
   }
 `;
 
@@ -487,14 +560,7 @@ function renderOverlayList() {
     `;
 
     item.addEventListener("click", async () => {
-      const inputEl = findPrimaryPromptInput();
-      if (inputEl) {
-        injectText(inputEl, stash.text, "replace");
-        await StashManager.incrementUsage(stash.id);
-        hideCommandPalette();
-      } else {
-        showInlineToast("No target textbox found!");
-      }
+      await handleStashSelection(stash, "replace");
     });
 
     resultsDiv.appendChild(item);
@@ -556,26 +622,29 @@ function showCommandPalette() {
   const currentPlatform = getContextName();
 
   dialog.innerHTML = `
-    <div class="ps-search-container">
-      <svg class="ps-search-icon" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-        <circle cx="11" cy="11" r="8"></circle>
-        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-      </svg>
-      <input class="ps-search-input" type="text" placeholder="Search prompts...">
-      <span class="ps-context-badge">${currentPlatform} Context</span>
-    </div>
-    <div class="ps-results"></div>
-    <div class="ps-footer">
-      <div class="ps-footer-left">
-        <span><span class="ps-key">↵</span> Replace</span>
-        <span><span class="ps-key">⇧↵</span> Append</span>
-        <span><span class="ps-key">⌥↵</span> Prepend</span>
+    <div class="ps-search-view" style="display: flex; flex-direction: column; height: 100%;">
+      <div class="ps-search-container">
+        <svg class="ps-search-icon" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <input class="ps-search-input" type="text" placeholder="Search prompts...">
+        <span class="ps-context-badge">${currentPlatform} Context</span>
       </div>
-      <div>
-        <span><span class="ps-key">Tab</span> Copy</span>
-        <span><span class="ps-key">Esc</span> Close</span>
+      <div class="ps-results"></div>
+      <div class="ps-footer">
+        <div class="ps-footer-left">
+          <span><span class="ps-key">↵</span> Replace</span>
+          <span><span class="ps-key">⇧↵</span> Append</span>
+          <span><span class="ps-key">⌥↵</span> Prepend</span>
+        </div>
+        <div>
+          <span><span class="ps-key">Tab</span> Copy</span>
+          <span><span class="ps-key">Esc</span> Close</span>
+        </div>
       </div>
     </div>
+    <div class="ps-form-view" style="display: none; height: 100%;"></div>
   `;
 
   overlay.appendChild(dialog);
@@ -615,7 +684,9 @@ function showCommandPalette() {
       if (filteredStashes.length && filteredStashes[selectedIndex]) {
         const stash = filteredStashes[selectedIndex];
         try {
-          await navigator.clipboard.writeText(stash.text);
+          const context = await gatherPageContext();
+          const resolvedText = await PackagingEngine.resolve(stash.text, context);
+          await navigator.clipboard.writeText(resolvedText);
           showInlineToast("Copied to clipboard!");
         } catch (err) {
           showInlineToast("Copy failed.");
@@ -625,18 +696,11 @@ function showCommandPalette() {
       e.preventDefault();
       if (filteredStashes.length && filteredStashes[selectedIndex]) {
         const stash = filteredStashes[selectedIndex];
-        const inputEl = findPrimaryPromptInput();
-        if (inputEl) {
-          let mode: "replace" | "append" | "prepend" = "replace";
-          if (e.shiftKey) mode = "append";
-          if (e.altKey) mode = "prepend";
+        let mode: "replace" | "append" | "prepend" = "replace";
+        if (e.shiftKey) mode = "append";
+        if (e.altKey) mode = "prepend";
 
-          injectText(inputEl, stash.text, mode);
-          await StashManager.incrementUsage(stash.id);
-          hideCommandPalette();
-        } else {
-          showInlineToast("No target textbox found!");
-        }
+        await handleStashSelection(stash, mode);
       }
     }
   });
@@ -649,6 +713,15 @@ function showCommandPalette() {
 function hideCommandPalette() {
   if (overlayHost) {
     overlayHost.style.display = "none";
+    if (shadowRoot) {
+      const searchView = shadowRoot.querySelector(".ps-search-view") as HTMLDivElement;
+      const formView = shadowRoot.querySelector(".ps-form-view") as HTMLDivElement;
+      if (searchView && formView) {
+        formView.style.display = "none";
+        formView.innerHTML = "";
+        searchView.style.display = "block";
+      }
+    }
   }
 }
 
@@ -668,9 +741,144 @@ Browser.runtime.onMessage.addListener((message: any, sender: any, sendResponse: 
     }
     const success = injectText(inputEl, message.text, "replace");
     sendResponse({ success });
+  } else if (message.action === "get-page-context") {
+    gatherPageContext().then((context) => {
+      sendResponse(context);
+    }).catch((err) => {
+      console.error("Failed to gather page context:", err);
+      sendResponse({ url: window.location.href, title: document.title, selection: "", clipboard: "" });
+    });
+    return true; // async
   }
   return true;
 });
+
+async function getClipboardText(): Promise<string> {
+  try {
+    return await navigator.clipboard.readText();
+  } catch (err) {
+    console.warn("Could not read clipboard in content script:", err);
+    return "";
+  }
+}
+
+async function gatherPageContext(): Promise<{ url: string; title: string; selection: string; clipboard: string }> {
+  const selection = window.getSelection()?.toString() || "";
+  const clipboard = await getClipboardText();
+  return {
+    url: window.location.href,
+    title: document.title,
+    selection,
+    clipboard
+  };
+}
+
+async function handleStashSelection(stash: Stash, mode: "replace" | "append" | "prepend" = "replace") {
+  const customVars = PackagingEngine.extractCustomVariables(stash.text);
+  
+  if (customVars.length > 0) {
+    showVariablesForm(stash, customVars, mode);
+  } else {
+    const context = await gatherPageContext();
+    const resolvedText = await PackagingEngine.resolve(stash.text, context);
+    
+    const inputEl = findPrimaryPromptInput();
+    if (inputEl) {
+      injectText(inputEl, resolvedText, mode);
+      await StashManager.incrementUsage(stash.id);
+      hideCommandPalette();
+    } else {
+      showInlineToast("No target textbox found!");
+    }
+  }
+}
+
+function showVariablesForm(stash: Stash, vars: string[], mode: "replace" | "append" | "prepend") {
+  if (!shadowRoot) return;
+  const searchView = shadowRoot.querySelector(".ps-search-view") as HTMLDivElement;
+  const formView = shadowRoot.querySelector(".ps-form-view") as HTMLDivElement;
+  if (!searchView || !formView) return;
+
+  searchView.style.display = "none";
+  formView.style.display = "block";
+  
+  formView.innerHTML = `
+    <div class="ps-form">
+      <div class="ps-form-title">Variables for "${escapeHtml(stash.title)}"</div>
+      ${vars.map((v) => `
+        <div class="ps-form-group">
+          <label class="ps-form-label" for="var-${v}">${escapeHtml(v)}</label>
+          <input class="ps-form-input ps-var-input" id="var-${v}" data-var="${v}" type="text" placeholder="Enter value for ${escapeHtml(v)}...">
+        </div>
+      `).join("")}
+      <div class="ps-form-actions">
+        <button class="ps-btn ps-btn-secondary ps-btn-cancel">Cancel</button>
+        <button class="ps-btn ps-btn-primary ps-btn-submit">Inject</button>
+      </div>
+    </div>
+  `;
+  
+  const firstInput = formView.querySelector(".ps-var-input") as HTMLInputElement;
+  if (firstInput) firstInput.focus();
+  
+  const cancelBtn = formView.querySelector(".ps-btn-cancel") as HTMLButtonElement;
+  const cancelForm = () => {
+    formView.style.display = "none";
+    formView.innerHTML = "";
+    searchView.style.display = "block";
+    
+    const searchInput = searchView.querySelector(".ps-search-input") as HTMLInputElement;
+    if (searchInput) {
+      searchInput.value = "";
+      searchInput.focus();
+    }
+    filteredStashes = [...activeStashes];
+    selectedIndex = 0;
+    renderOverlayList();
+  };
+  
+  cancelBtn.addEventListener("click", cancelForm);
+  
+  const submitBtn = formView.querySelector(".ps-btn-submit") as HTMLButtonElement;
+  const submitForm = async () => {
+    const inputs = formView.querySelectorAll(".ps-var-input") as NodeListOf<HTMLInputElement>;
+    const customValues: Record<string, string> = {};
+    inputs.forEach((input) => {
+      const vName = input.getAttribute("data-var") || "";
+      customValues[vName] = input.value;
+    });
+    
+    const context = await gatherPageContext();
+    const resolvedText = await PackagingEngine.resolve(stash.text, {
+      ...context,
+      customValues,
+    });
+    
+    const inputEl = findPrimaryPromptInput();
+    if (inputEl) {
+      injectText(inputEl, resolvedText, mode);
+      await StashManager.incrementUsage(stash.id);
+      hideCommandPalette();
+    } else {
+      showInlineToast("No target textbox found!");
+    }
+  };
+  
+  submitBtn.addEventListener("click", submitForm);
+  
+  const inputs = formView.querySelectorAll(".ps-form-input") as NodeListOf<HTMLInputElement>;
+  inputs.forEach((input) => {
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        submitForm();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        cancelForm();
+      }
+    });
+  });
+}
 
 // Auto Trigger Keystroke Expansion Checker
 document.addEventListener("keydown", async (e: KeyboardEvent) => {
@@ -702,10 +910,30 @@ async function handleAutoTriggerCheck(target: HTMLElement, e: KeyboardEvent) {
       if (matchedStash) {
         e.preventDefault(); // Stop space/enter from inserting
 
+        let customValues: Record<string, string> = {};
+        const customVars = PackagingEngine.extractCustomVariables(matchedStash.text);
+        let cancelled = false;
+        
+        for (const v of customVars) {
+          const val = prompt(`Enter value for variable "${v}":`);
+          if (val === null) {
+            cancelled = true;
+            break;
+          }
+          customValues[v] = val;
+        }
+        
+        if (cancelled) return;
+
         // Calculate replaced strings
         const textBeforeTrigger = textBefore.slice(0, textBefore.length - keyword.length - 1);
         const textAfterTrigger = val.slice(cursor);
-        const replacementText = matchedStash.text;
+        
+        const context = await gatherPageContext();
+        const replacementText = await PackagingEngine.resolve(matchedStash.text, {
+          ...context,
+          customValues
+        });
 
         const newTextVal = textBeforeTrigger + replacementText + textAfterTrigger;
         const newCursorPos = textBeforeTrigger.length + replacementText.length;
@@ -750,6 +978,21 @@ async function handleAutoTriggerCheck(target: HTMLElement, e: KeyboardEvent) {
       if (matchedStash) {
         e.preventDefault(); // Stop space/enter input
 
+        let customValues: Record<string, string> = {};
+        const customVars = PackagingEngine.extractCustomVariables(matchedStash.text);
+        let cancelled = false;
+        
+        for (const v of customVars) {
+          const val = prompt(`Enter value for variable "${v}":`);
+          if (val === null) {
+            cancelled = true;
+            break;
+          }
+          customValues[v] = val;
+        }
+        
+        if (cancelled) return;
+
         const range = document.createRange();
         // Select exactly the slash and trigger text node characters
         range.setStart(selection.focusNode, offset - keyword.length - 1);
@@ -758,9 +1001,15 @@ async function handleAutoTriggerCheck(target: HTMLElement, e: KeyboardEvent) {
         selection.removeAllRanges();
         selection.addRange(range);
 
+        const context = await gatherPageContext();
+        const replacementText = await PackagingEngine.resolve(matchedStash.text, {
+          ...context,
+          customValues
+        });
+
         // Delete text and insert replacement text dynamically
         document.execCommand("delete", false);
-        document.execCommand("insertText", false, matchedStash.text);
+        document.execCommand("insertText", false, replacementText);
         
         target.dispatchEvent(new Event("input", { bubbles: true }));
         await StashManager.incrementUsage(matchedStash.id);

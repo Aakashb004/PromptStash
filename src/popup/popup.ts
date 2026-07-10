@@ -1,6 +1,7 @@
 import Browser from "../adapters/browser";
 import { StashManager } from "../storage/stashManager";
 import { Stash } from "../types";
+import { PackagingEngine } from "../utils/packagingEngine";
 
 // Inputs
 const titleInput = document.getElementById("title") as HTMLInputElement;
@@ -30,6 +31,13 @@ const stashCountLabel = document.getElementById("stashCount") as HTMLSpanElement
 // Actions
 const exportBtn = document.getElementById("exportBtn") as HTMLButtonElement;
 const importBtn = document.getElementById("importBtn") as HTMLButtonElement;
+
+// Variable Drawer elements
+const varsDrawer = document.getElementById("varsDrawer") as HTMLDivElement;
+const closeVarsDrawerBtn = document.getElementById("closeVarsDrawerBtn") as HTMLButtonElement;
+const varsFormBody = document.getElementById("varsFormBody") as HTMLDivElement;
+const varsSubmitBtn = document.getElementById("varsSubmitBtn") as HTMLButtonElement;
+let activeSubmitListener: (() => void) | null = null;
 
 let currentSearch = "";
 
@@ -221,6 +229,11 @@ async function initialize() {
     }
   });
 
+  // Close variables drawer
+  closeVarsDrawerBtn.addEventListener("click", () => {
+    varsDrawer.classList.add("hidden");
+  });
+
   // Initial load
   await refreshAll();
 }
@@ -257,37 +270,137 @@ async function loadAnalytics() {
 }
 
 // Inject prompt or copy as fallback
-async function injectOrCopy(stash: Stash) {
+async function processStashAction(stash: Stash, action: "inject" | "copy") {
+  const customVars = PackagingEngine.extractCustomVariables(stash.text);
+  if (customVars.length > 0) {
+    showVarsDrawer(stash, customVars, action);
+  } else {
+    await executeStashAction(stash, action);
+  }
+}
+
+function showVarsDrawer(stash: Stash, vars: string[], action: "inject" | "copy") {
+  varsFormBody.innerHTML = "";
+  
+  vars.forEach((v) => {
+    const group = document.createElement("div");
+    group.className = "form-group";
+    group.innerHTML = `
+      <label for="var-${v}">${escapeHtml(v)}</label>
+      <input class="popup-var-input" id="var-${v}" data-var="${v}" type="text" placeholder="Value for ${escapeHtml(v)}...">
+    `;
+    varsFormBody.appendChild(group);
+  });
+  
+  varsSubmitBtn.textContent = action === "inject" ? "Inject Prompt" : "Copy Prompt";
+  varsDrawer.classList.remove("hidden");
+  
+  const firstInput = varsFormBody.querySelector(".popup-var-input") as HTMLInputElement;
+  if (firstInput) firstInput.focus();
+
+  const inputs = varsFormBody.querySelectorAll(".popup-var-input") as NodeListOf<HTMLInputElement>;
+  inputs.forEach((input) => {
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        varsSubmitBtn.click();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        varsDrawer.classList.add("hidden");
+      }
+    });
+  });
+  
+  if (activeSubmitListener) {
+    varsSubmitBtn.removeEventListener("click", activeSubmitListener);
+  }
+  
+  activeSubmitListener = async () => {
+    const popupInputs = varsFormBody.querySelectorAll(".popup-var-input") as NodeListOf<HTMLInputElement>;
+    const customValues: Record<string, string> = {};
+    popupInputs.forEach((input) => {
+      const vName = input.getAttribute("data-var") || "";
+      customValues[vName] = input.value;
+    });
+    
+    varsDrawer.classList.add("hidden");
+    await executeStashAction(stash, action, customValues);
+  };
+  
+  varsSubmitBtn.addEventListener("click", activeSubmitListener);
+}
+
+async function executeStashAction(stash: Stash, action: "inject" | "copy", customValues?: Record<string, string>) {
+  let context: { url?: string; title?: string; selection?: string; clipboard?: string } = {};
   try {
     const tabs = await Browser.tabs.query({ active: true, currentWindow: true });
     const activeTab = tabs[0];
-
     if (activeTab?.id) {
-      const response = await Browser.tabs.sendMessage(activeTab.id, {
-        action: "inject-prompt",
-        text: stash.text,
+      const tabContext = await Browser.tabs.sendMessage(activeTab.id, {
+        action: "get-page-context"
       });
-
-      if (response && response.success) {
-        await StashManager.incrementUsage(stash.id);
-        await refreshAll();
-        showToast("Prompt injected into page!");
-        return;
+      if (tabContext) {
+        context = tabContext;
       }
     }
   } catch (err) {
-    console.warn("Script context connection failed, falling back to clipboard:", err);
+    console.warn("Could not get page context from active tab:", err);
   }
 
-  // Fallback to clipboard
-  try {
-    await navigator.clipboard.writeText(stash.text);
-    await StashManager.incrementUsage(stash.id);
-    await refreshAll();
-    showToast("Copied (no active AI text area found)!");
-  } catch (err) {
-    showToast("Failed to copy prompt.", "error");
+  if (!context.url) {
+    try {
+      const tabs = await Browser.tabs.query({ active: true, currentWindow: true });
+      const activeTab = tabs[0];
+      if (activeTab) {
+        context.url = activeTab.url || "";
+        context.title = activeTab.title || "";
+      }
+    } catch (e) {}
   }
+
+  const resolvedText = await PackagingEngine.resolve(stash.text, {
+    ...context,
+    customValues
+  });
+
+  if (action === "inject") {
+    let injected = false;
+    try {
+      const tabs = await Browser.tabs.query({ active: true, currentWindow: true });
+      const activeTab = tabs[0];
+      if (activeTab?.id) {
+        const response = await Browser.tabs.sendMessage(activeTab.id, {
+          action: "inject-prompt",
+          text: resolvedText,
+        });
+        if (response && response.success) {
+          injected = true;
+          showToast("Prompt injected into page!");
+        }
+      }
+    } catch (err) {
+      console.warn("Script context connection failed for injection:", err);
+    }
+
+    if (!injected) {
+      try {
+        await navigator.clipboard.writeText(resolvedText);
+        showToast("Copied (no active AI text area found)!");
+      } catch (err) {
+        showToast("Failed to copy prompt.", "error");
+      }
+    }
+  } else {
+    try {
+      await navigator.clipboard.writeText(resolvedText);
+      showToast("Copied to clipboard!");
+    } catch (err) {
+      showToast("Failed to copy.", "error");
+    }
+  }
+
+  await StashManager.incrementUsage(stash.id);
+  await refreshAll();
 }
 
 // Render dynamic lists
@@ -371,7 +484,7 @@ async function renderStashes() {
       if (target.closest(".card-actions") || target.closest(".card-favorite-star")) {
         return;
       }
-      injectOrCopy(stash);
+      processStashAction(stash, "inject");
     });
 
     // Favorite handler
@@ -387,20 +500,13 @@ async function renderStashes() {
     const injectBtn = card.querySelector(".inject") as HTMLButtonElement;
     injectBtn.addEventListener("click", async (e) => {
       e.stopPropagation();
-      await injectOrCopy(stash);
+      processStashAction(stash, "inject");
     });
 
     const copyBtn = card.querySelector(".copy") as HTMLButtonElement;
     copyBtn.addEventListener("click", async (e) => {
       e.stopPropagation();
-      try {
-        await navigator.clipboard.writeText(stash.text);
-        await StashManager.incrementUsage(stash.id);
-        await refreshAll();
-        showToast("Copied to clipboard!");
-      } catch (err) {
-        showToast("Failed to copy.", "error");
-      }
+      processStashAction(stash, "copy");
     });
 
     const deleteBtn = card.querySelector(".delete") as HTMLButtonElement;
