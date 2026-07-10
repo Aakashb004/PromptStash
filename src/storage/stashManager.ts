@@ -52,4 +52,18 @@ export class StashManager {
       capsules: updated,
     });
   }
+
+  static async update(id: string, updates: Partial<Stash>): Promise<void> {
+    const stashes = await this.getAll();
+    const updated = stashes.map((stash) => {
+      if (stash.id !== id) return stash;
+      return {
+        ...stash,
+        ...updates,
+      };
+    });
+    await Browser.storage.local.set({
+      capsules: updated,
+    });
+  }
 }

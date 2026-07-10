@@ -561,3 +561,81 @@ textarea {
 .toast-error .toast-icon {
   color: var(--color-error);
 }
+
+/* Version History Styling */
+.version-history-container {
+  margin-top: 8px;
+}
+
+.version-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 180px;
+  overflow-y: auto;
+  padding: 6px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+}
+
+.version-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  transition: var(--transition-smooth);
+}
+
+.version-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--border-focus);
+}
+
+.version-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.version-num {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-accent);
+}
+
+.version-date {
+  font-size: 9px;
+  color: var(--text-muted);
+}
+
+.version-chars {
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.version-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.version-btn {
+  font-size: 10px;
+  padding: 4px 8px;
+  background: rgba(99, 102, 241, 0.15);
+  color: var(--text-accent);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: var(--transition-smooth);
+}
+
+.version-btn:hover {
+  background: var(--bg-accent-gradient);
+  color: #ffffff;
+  border-color: transparent;
+}

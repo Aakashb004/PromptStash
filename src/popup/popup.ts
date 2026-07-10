@@ -1,6 +1,7 @@
 import Browser from "../adapters/browser";
 import { StashManager } from "../storage/stashManager";
 import { Stash } from "../types";
+import { VersionManager } from "../storage/versionManager";
 import { PackagingEngine } from "../utils/packagingEngine";
 
 // Inputs
@@ -38,6 +39,17 @@ const closeVarsDrawerBtn = document.getElementById("closeVarsDrawerBtn") as HTML
 const varsFormBody = document.getElementById("varsFormBody") as HTMLDivElement;
 const varsSubmitBtn = document.getElementById("varsSubmitBtn") as HTMLButtonElement;
 let activeSubmitListener: (() => void) | null = null;
+
+// Edit Drawer elements
+const editDrawer = document.getElementById("editDrawer") as HTMLDivElement;
+const closeEditDrawerBtn = document.getElementById("closeEditDrawerBtn") as HTMLButtonElement;
+const editStashId = document.getElementById("editStashId") as HTMLInputElement;
+const editTitleInput = document.getElementById("editTitle") as HTMLInputElement;
+const editTagsInput = document.getElementById("editTags") as HTMLInputElement;
+const editAutoTriggerInput = document.getElementById("editAutoTrigger") as HTMLInputElement;
+const editContentInput = document.getElementById("editContent") as HTMLTextAreaElement;
+const versionTimeline = document.getElementById("versionTimeline") as HTMLDivElement;
+const updateBtn = document.getElementById("updateBtn") as HTMLButtonElement;
 
 let currentSearch = "";
 
@@ -232,6 +244,60 @@ async function initialize() {
   // Close variables drawer
   closeVarsDrawerBtn.addEventListener("click", () => {
     varsDrawer.classList.add("hidden");
+  });
+
+  // Close edit drawer
+  closeEditDrawerBtn.addEventListener("click", () => {
+    editDrawer.classList.add("hidden");
+  });
+
+  // Save changes from Edit Drawer
+  updateBtn.addEventListener("click", async () => {
+    const id = editStashId.value;
+    const title = editTitleInput.value.trim();
+    const rawTags = editTagsInput.value.trim();
+    const text = editContentInput.value.trim();
+
+    if (!id || !title || !text) {
+      showToast("Please enter a title and content.", "error");
+      return;
+    }
+
+    const tags = rawTags
+      ? rawTags.split(",").map((t) => t.trim().toLowerCase()).filter(Boolean)
+      : ["general"];
+
+    let autoTrigger = editAutoTriggerInput.value.trim().toLowerCase();
+    if (autoTrigger) {
+      if (autoTrigger.startsWith("/")) {
+        autoTrigger = autoTrigger.substring(1);
+      }
+      if (!/^[a-z0-9_-]+$/.test(autoTrigger)) {
+        showToast("Trigger shortcut can only contain letters, numbers, hyphens, and underscores.", "error");
+        return;
+      }
+    }
+
+    const stashes = await StashManager.getAll();
+    const stash = stashes.find((s) => s.id === id);
+    if (stash) {
+      if (stash.text !== text) {
+        await VersionManager.addVersion(id, text);
+      }
+      
+      await StashManager.update(id, {
+        title,
+        tags,
+        autoTrigger,
+        text,
+      });
+
+      editDrawer.classList.add("hidden");
+      await refreshAll();
+      showToast("Prompt updated successfully!");
+    } else {
+      showToast("Prompt not found.", "error");
+    }
   });
 
   // Initial load
@@ -460,6 +526,12 @@ async function renderStashes() {
               <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
             </svg>
           </button>
+          <button class="action-btn edit" title="Edit Stash">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 20h9"></path>
+              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+            </svg>
+          </button>
           <button class="action-btn delete" title="Delete Stash">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="3 6 5 6 21 6"></polyline>
@@ -509,6 +581,12 @@ async function renderStashes() {
       processStashAction(stash, "copy");
     });
 
+    const editBtn = card.querySelector(".edit") as HTMLButtonElement;
+    editBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openEditDrawer(stash);
+    });
+
     const deleteBtn = card.querySelector(".delete") as HTMLButtonElement;
     deleteBtn.addEventListener("click", async (e) => {
       e.stopPropagation();
@@ -518,5 +596,51 @@ async function renderStashes() {
     });
 
     stashList.appendChild(card);
+  });
+}
+
+function openEditDrawer(stash: Stash) {
+  editStashId.value = stash.id;
+  editTitleInput.value = stash.title;
+  editTagsInput.value = (stash.tags || []).join(", ");
+  editAutoTriggerInput.value = stash.autoTrigger || "";
+  editContentInput.value = stash.text;
+
+  renderVersionTimeline(stash);
+  editDrawer.classList.remove("hidden");
+}
+
+function renderVersionTimeline(stash: Stash) {
+  versionTimeline.innerHTML = "";
+  const versions = stash.versions || [];
+  if (versions.length === 0) {
+    versionTimeline.innerHTML = `<div class="empty-state" style="padding: 10px; font-size:11px;">No version history.</div>`;
+    return;
+  }
+
+  const sortedVersions = [...versions].reverse();
+  sortedVersions.forEach((v) => {
+    const item = document.createElement("div");
+    item.className = "version-item";
+    
+    const formattedDate = new Date(v.createdAt).toLocaleString();
+    item.innerHTML = `
+      <div class="version-meta">
+        <span class="version-num">Version ${v.version}</span>
+        <span class="version-date">${formattedDate}</span>
+      </div>
+      <span class="version-chars">${v.text.length} chars</span>
+      <div class="version-actions">
+        <button class="version-btn restore-btn" title="Restore this version">Restore</button>
+      </div>
+    `;
+
+    const restoreBtn = item.querySelector(".restore-btn") as HTMLButtonElement;
+    restoreBtn.addEventListener("click", () => {
+      editContentInput.value = v.text;
+      showToast(`Loaded version ${v.version} into editor!`);
+    });
+
+    versionTimeline.appendChild(item);
   });
 }
