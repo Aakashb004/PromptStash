@@ -3,6 +3,7 @@ import { StashManager } from "../storage/stashManager";
 import { Stash } from "../types";
 import { VersionManager } from "../storage/versionManager";
 import { PackagingEngine } from "../utils/packagingEngine";
+import { TokenEstimator } from "../utils/tokenEstimator";
 
 // Inputs
 const titleInput = document.getElementById("title") as HTMLInputElement;
@@ -50,6 +51,12 @@ const editAutoTriggerInput = document.getElementById("editAutoTrigger") as HTMLI
 const editContentInput = document.getElementById("editContent") as HTMLTextAreaElement;
 const versionTimeline = document.getElementById("versionTimeline") as HTMLDivElement;
 const updateBtn = document.getElementById("updateBtn") as HTMLButtonElement;
+
+// Counter elements
+const createLength = document.getElementById("createLength") as HTMLSpanElement;
+const createTokens = document.getElementById("createTokens") as HTMLSpanElement;
+const editLength = document.getElementById("editLength") as HTMLSpanElement;
+const editTokens = document.getElementById("editTokens") as HTMLSpanElement;
 
 let currentSearch = "";
 
@@ -162,6 +169,8 @@ async function initialize() {
     contentInput.value = "";
     tagsInput.value = "";
     autoTriggerInput.value = "";
+    createLength.textContent = "0";
+    createTokens.textContent = "0";
 
     // Close Drawer
     drawer.classList.add("hidden");
@@ -249,6 +258,20 @@ async function initialize() {
   // Close edit drawer
   closeEditDrawerBtn.addEventListener("click", () => {
     editDrawer.classList.add("hidden");
+  });
+
+  // Counter live updates for Create Prompt
+  contentInput.addEventListener("input", () => {
+    const text = contentInput.value;
+    createLength.textContent = text.length.toString();
+    createTokens.textContent = TokenEstimator.estimate(text).toString();
+  });
+
+  // Counter live updates for Edit Prompt
+  editContentInput.addEventListener("input", () => {
+    const text = editContentInput.value;
+    editLength.textContent = text.length.toString();
+    editTokens.textContent = TokenEstimator.estimate(text).toString();
   });
 
   // Save changes from Edit Drawer
@@ -545,7 +568,7 @@ async function renderStashes() {
       <div class="card-content">${escapeHtml(stash.text)}</div>
       <div class="card-footer">
         <div class="card-tags">${tagsHtml}</div>
-        <span class="card-usage">${stash.usageCount} ${stash.usageCount === 1 ? "use" : "uses"}</span>
+        <span class="card-usage">${stash.usageCount} ${stash.usageCount === 1 ? "use" : "uses"} • ${TokenEstimator.estimate(stash.text)} tokens</span>
       </div>
     `;
 
@@ -605,6 +628,9 @@ function openEditDrawer(stash: Stash) {
   editTagsInput.value = (stash.tags || []).join(", ");
   editAutoTriggerInput.value = stash.autoTrigger || "";
   editContentInput.value = stash.text;
+  
+  editLength.textContent = stash.text.length.toString();
+  editTokens.textContent = TokenEstimator.estimate(stash.text).toString();
 
   renderVersionTimeline(stash);
   editDrawer.classList.remove("hidden");
@@ -638,6 +664,8 @@ function renderVersionTimeline(stash: Stash) {
     const restoreBtn = item.querySelector(".restore-btn") as HTMLButtonElement;
     restoreBtn.addEventListener("click", () => {
       editContentInput.value = v.text;
+      editLength.textContent = v.text.length.toString();
+      editTokens.textContent = TokenEstimator.estimate(v.text).toString();
       showToast(`Loaded version ${v.version} into editor!`);
     });
 

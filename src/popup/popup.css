@@ -639,3 +639,13 @@ textarea {
   color: #ffffff;
   border-color: transparent;
 }
+
+/* Live Counter Label Styling */
+.counter-label {
+  display: flex;
+  justify-content: flex-end;
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  font-weight: 500;
+}
