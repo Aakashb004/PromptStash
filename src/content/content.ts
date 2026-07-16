@@ -581,19 +581,8 @@ function escapeHtml(text: string): string {
     .replace(/>/g, "&gt;");
 }
 
-function showCommandPalette() {
-  if (overlayHost) {
-    overlayHost.style.display = "block";
-    const searchInput = shadowRoot?.querySelector(".ps-search-input") as HTMLInputElement;
-    if (searchInput) {
-      searchInput.value = "";
-      searchInput.focus();
-    }
-    filteredStashes = [...activeStashes];
-    selectedIndex = 0;
-    renderOverlayList();
-    return;
-  }
+function ensureOverlayCreated() {
+  if (overlayHost) return;
 
   overlayHost = document.createElement("div");
   overlayHost.id = "promptstash-shadow-host";
@@ -700,6 +689,27 @@ function showCommandPalette() {
       }
     }
   });
+}
+
+function showCommandPalette() {
+  ensureOverlayCreated();
+  
+  if (overlayHost) {
+    overlayHost.style.display = "block";
+    const searchView = shadowRoot?.querySelector(".ps-search-view") as HTMLDivElement;
+    const formView = shadowRoot?.querySelector(".ps-form-view") as HTMLDivElement;
+    if (searchView && formView) {
+      formView.style.display = "none";
+      formView.innerHTML = "";
+      searchView.style.display = "block";
+    }
+
+    const searchInput = shadowRoot?.querySelector(".ps-search-input") as HTMLInputElement;
+    if (searchInput) {
+      searchInput.value = "";
+      searchInput.focus();
+    }
+  }
 
   filteredStashes = [...activeStashes];
   selectedIndex = 0;
@@ -719,6 +729,136 @@ function hideCommandPalette() {
       }
     }
   }
+}
+
+function scrapePageText(): string {
+  const selection = window.getSelection()?.toString().trim();
+  if (selection) return selection;
+
+  const selectors = ["article", "main", "[role='main']", ".main-content", ".post-content"];
+  for (const selector of selectors) {
+    const el = document.querySelector(selector);
+    if (el && el instanceof HTMLElement) {
+      const text = el.innerText.trim();
+      if (text.length > 50) return cleanText(text);
+    }
+  }
+
+  const paragraphs = Array.from(document.querySelectorAll("p, h1, h2, h3, li"));
+  const textBlocks = paragraphs
+    .map((p) => (p as HTMLElement).innerText.trim())
+    .filter((txt) => txt.length > 15);
+    
+  if (textBlocks.length > 0) {
+    return cleanText(textBlocks.join("\n\n"));
+  }
+
+  return cleanText(document.body.innerText);
+}
+
+function cleanText(text: string): string {
+  return text
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]+/g, " ")
+    .trim();
+}
+
+function showHarvestForm(pageTitle: string, harvestedText: string) {
+  ensureOverlayCreated();
+
+  if (overlayHost) {
+    overlayHost.style.display = "block";
+  }
+
+  const searchView = shadowRoot?.querySelector(".ps-search-view") as HTMLDivElement;
+  const formView = shadowRoot?.querySelector(".ps-form-view") as HTMLDivElement;
+  if (!searchView || !formView) return;
+
+  searchView.style.display = "none";
+  formView.style.display = "block";
+
+  formView.innerHTML = `
+    <div class="ps-form">
+      <div class="ps-form-title">Harvest Page Context</div>
+      <div class="ps-form-group">
+        <label class="ps-form-label" for="harvest-title">Stash Title</label>
+        <input class="ps-form-input" id="harvest-title" type="text" value="Harvested: ${escapeHtml(pageTitle)}">
+      </div>
+      <div class="ps-form-group">
+        <label class="ps-form-label" for="harvest-tags">Tags</label>
+        <input class="ps-form-input" id="harvest-tags" type="text" value="harvested">
+      </div>
+      <div class="ps-form-group">
+        <label class="ps-form-label" for="harvest-trigger">Auto Trigger Shortcut</label>
+        <input class="ps-form-input" id="harvest-trigger" type="text" placeholder="e.g. shortcut (optional)">
+      </div>
+      <div class="ps-form-group" style="flex: 1; display: flex; flex-direction: column;">
+        <label class="ps-form-label" for="harvest-text">Harvested Text</label>
+        <textarea class="ps-form-input" id="harvest-text" style="flex: 1; min-height: 80px; resize: none; font-family: inherit; font-size: 11px;">${escapeHtml(harvestedText)}</textarea>
+      </div>
+      <div class="ps-form-actions">
+        <button class="ps-btn ps-btn-secondary ps-btn-cancel">Discard</button>
+        <button class="ps-btn ps-btn-primary ps-btn-save">Save Stash</button>
+      </div>
+    </div>
+  `;
+
+  const titleInput = formView.querySelector("#harvest-title") as HTMLInputElement;
+  if (titleInput) titleInput.focus();
+
+  const cancelBtn = formView.querySelector(".ps-btn-cancel") as HTMLButtonElement;
+  cancelBtn.addEventListener("click", () => {
+    hideCommandPalette();
+  });
+
+  const saveBtn = formView.querySelector(".ps-btn-save") as HTMLButtonElement;
+  saveBtn.addEventListener("click", async () => {
+    const title = (formView.querySelector("#harvest-title") as HTMLInputElement).value.trim();
+    const rawTags = (formView.querySelector("#harvest-tags") as HTMLInputElement).value.trim();
+    const text = (formView.querySelector("#harvest-text") as HTMLTextAreaElement).value.trim();
+    let autoTrigger = (formView.querySelector("#harvest-trigger") as HTMLInputElement).value.trim().toLowerCase();
+
+    if (!title || !text) {
+      showInlineToast("Title and content are required!");
+      return;
+    }
+
+    const tags = rawTags
+      ? rawTags.split(",").map((t) => t.trim().toLowerCase()).filter(Boolean)
+      : ["harvested"];
+
+    if (autoTrigger) {
+      if (autoTrigger.startsWith("/")) {
+        autoTrigger = autoTrigger.substring(1);
+      }
+      if (!/^[a-z0-9_-]+$/.test(autoTrigger)) {
+        showInlineToast("Invalid trigger format!");
+        return;
+      }
+    }
+
+    const stash: Stash = {
+      id: crypto.randomUUID(),
+      title,
+      text,
+      autoTrigger,
+      tags,
+      favorite: false,
+      usageCount: 0,
+      timestamp: Date.now(),
+      versions: [
+        {
+          version: 1,
+          text,
+          createdAt: Date.now(),
+        },
+      ],
+    };
+
+    await StashManager.save(stash);
+    hideCommandPalette();
+    showInlineToast("Stash saved successfully!");
+  });
 }
 
 // Global commands receiver
@@ -745,6 +885,10 @@ Browser.runtime.onMessage.addListener((message: any, sender: any, sendResponse: 
       sendResponse({ url: window.location.href, title: document.title, selection: "", clipboard: "" });
     });
     return true; // async
+  } else if (message.action === "harvest-context") {
+    const text = scrapePageText();
+    showHarvestForm(document.title, text);
+    sendResponse({ success: true });
   }
   return true;
 });
