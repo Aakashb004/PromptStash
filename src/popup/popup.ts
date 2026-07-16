@@ -4,6 +4,7 @@ import { Stash } from "../types";
 import { VersionManager } from "../storage/versionManager";
 import { PackagingEngine } from "../utils/packagingEngine";
 import { TokenEstimator } from "../utils/tokenEstimator";
+import { SemanticSearch } from "../utils/semanticSearch";
 
 // Inputs
 const titleInput = document.getElementById("title") as HTMLInputElement;
@@ -497,12 +498,7 @@ async function renderStashes() {
   let stashes = await StashManager.getAll();
 
   if (currentSearch) {
-    stashes = stashes.filter(
-      (stash) =>
-        stash.title.toLowerCase().includes(currentSearch) ||
-        stash.text.toLowerCase().includes(currentSearch) ||
-        stash.tags.some((tag) => tag.toLowerCase().includes(currentSearch))
-    );
+    stashes = SemanticSearch.search(stashes, currentSearch);
   }
 
   stashList.innerHTML = "";

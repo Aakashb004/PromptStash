@@ -2,6 +2,7 @@ import Browser from "../adapters/browser";
 import { StashManager } from "../storage/stashManager";
 import { Stash } from "../types";
 import { PackagingEngine } from "../utils/packagingEngine";
+import { SemanticSearch } from "../utils/semanticSearch";
 
 console.log("PromptStash AI Integration Service Active");
 
@@ -655,13 +656,8 @@ function showCommandPalette() {
 
   // Search input change filtering
   searchInput.addEventListener("input", () => {
-    const query = searchInput.value.toLowerCase();
-    filteredStashes = activeStashes.filter(
-      (s) =>
-        s.title.toLowerCase().includes(query) ||
-        s.text.toLowerCase().includes(query) ||
-        s.tags.some((t) => t.toLowerCase().includes(query))
-    );
+    const query = searchInput.value;
+    filteredStashes = SemanticSearch.search(activeStashes, query);
     selectedIndex = 0;
     renderOverlayList();
   });

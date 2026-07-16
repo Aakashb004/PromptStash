@@ -7,7 +7,7 @@ export class PackagingEngine {
     const matches = template.matchAll(/\{\{\s*([a-zA-Z0-9_-]+)\s*\}\}/g);
     const vars: string[] = [];
     const systemVars = ["date", "time", "url", "title", "selection", "clipboard"];
-    
+
     for (const match of matches) {
       const originalName = match[1];
       const lowerName = originalName.toLowerCase();
