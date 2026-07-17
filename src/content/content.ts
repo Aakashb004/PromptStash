@@ -20,6 +20,9 @@ const PALETTE_CSS = `
     all: initial;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
   }
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
   .ps-overlay {
     position: fixed;
     top: 0;
@@ -37,7 +40,7 @@ const PALETTE_CSS = `
   }
   .ps-dialog {
     width: 520px;
-    max-height: 380px;
+    max-height: 540px;
     background-color: #080c14;
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 12px;
@@ -227,7 +230,7 @@ const PALETTE_CSS = `
     gap: 12px;
     overflow-y: auto;
     height: 100%;
-    max-height: 380px;
+    max-height: 100%;
   }
   .ps-form-title {
     font-size: 13px;
