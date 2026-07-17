@@ -1,6 +1,7 @@
 import Browser from "../adapters/browser";
 import { StashManager } from "../storage/stashManager";
-import { Stash } from "../types";
+import { PersonaManager } from "../storage/personaManager";
+import { Stash, Persona } from "../types";
 import { VersionManager } from "../storage/versionManager";
 import { PackagingEngine } from "../utils/packagingEngine";
 import { TokenEstimator } from "../utils/tokenEstimator";
@@ -59,6 +60,29 @@ const createTokens = document.getElementById("createTokens") as HTMLSpanElement;
 const editLength = document.getElementById("editLength") as HTMLSpanElement;
 const editTokens = document.getElementById("editTokens") as HTMLSpanElement;
 
+// Tabs & Views
+const stashesTabBtn = document.getElementById("stashesTabBtn") as HTMLButtonElement;
+const personasTabBtn = document.getElementById("personasTabBtn") as HTMLButtonElement;
+const personasList = document.getElementById("personasList") as HTMLDivElement;
+const quickStats = document.querySelector(".quick-stats") as HTMLElement;
+
+// Persona Drawer elements
+const togglePersonaDrawerBtn = document.getElementById("togglePersonaDrawerBtn") as HTMLButtonElement;
+const personaDrawer = document.getElementById("personaDrawer") as HTMLDivElement;
+const closePersonaDrawerBtn = document.getElementById("closePersonaDrawerBtn") as HTMLButtonElement;
+const savePersonaBtn = document.getElementById("savePersonaBtn") as HTMLButtonElement;
+const editPersonaId = document.getElementById("editPersonaId") as HTMLInputElement;
+const personaEmojiInput = document.getElementById("personaEmoji") as HTMLInputElement;
+const personaNameInput = document.getElementById("personaName") as HTMLInputElement;
+const personaDescriptionInput = document.getElementById("personaDescription") as HTMLInputElement;
+const personaSystemPromptInput = document.getElementById("personaSystemPrompt") as HTMLTextAreaElement;
+const personaDrawerTitle = document.getElementById("personaDrawerTitle") as HTMLHeadingElement;
+
+// Stash Persona dropdowns
+const stashPersonaSelect = document.getElementById("stashPersona") as HTMLSelectElement;
+const editStashPersonaSelect = document.getElementById("editStashPersona") as HTMLSelectElement;
+
+let activeTab: "stashes" | "personas" = "stashes";
 let currentSearch = "";
 
 // Custom Toast notification helper
@@ -145,6 +169,8 @@ async function initialize() {
       }
     }
 
+    const personaId = stashPersonaSelect.value || undefined;
+
     const stash: Stash = {
       id: crypto.randomUUID(),
       title,
@@ -161,6 +187,7 @@ async function initialize() {
           createdAt: Date.now(),
         },
       ],
+      personaId,
     };
 
     await StashManager.save(stash);
@@ -170,6 +197,7 @@ async function initialize() {
     contentInput.value = "";
     tagsInput.value = "";
     autoTriggerInput.value = "";
+    stashPersonaSelect.value = "";
     createLength.textContent = "0";
     createTokens.textContent = "0";
 
@@ -184,7 +212,95 @@ async function initialize() {
   // Search input listeners
   searchInput.addEventListener("input", async () => {
     currentSearch = searchInput.value.toLowerCase();
-    await renderStashes();
+    if (activeTab === "stashes") {
+      await renderStashes();
+    } else {
+      await renderPersonas();
+    }
+  });
+
+  // Tab switcher buttons
+  stashesTabBtn.addEventListener("click", () => {
+    activeTab = "stashes";
+    stashesTabBtn.classList.add("active");
+    personasTabBtn.classList.remove("active");
+    stashList.classList.remove("hidden");
+    personasList.classList.add("hidden");
+    quickStats.style.display = "grid";
+    toggleDrawerBtn.classList.remove("hidden");
+    togglePersonaDrawerBtn.classList.add("hidden");
+    searchInput.placeholder = "Search stashes by title or tags...";
+    searchInput.value = "";
+    currentSearch = "";
+    refreshAll();
+  });
+
+  personasTabBtn.addEventListener("click", () => {
+    activeTab = "personas";
+    stashesTabBtn.classList.remove("active");
+    personasTabBtn.classList.add("active");
+    stashList.classList.add("hidden");
+    personasList.classList.remove("hidden");
+    quickStats.style.display = "none";
+    toggleDrawerBtn.classList.add("hidden");
+    togglePersonaDrawerBtn.classList.remove("hidden");
+    searchInput.placeholder = "Search personas by name or description...";
+    searchInput.value = "";
+    currentSearch = "";
+    refreshAll();
+  });
+
+  // Open Persona Drawer
+  togglePersonaDrawerBtn.addEventListener("click", () => {
+    personaDrawerTitle.textContent = "Create Persona";
+    editPersonaId.value = "";
+    personaEmojiInput.value = "";
+    personaNameInput.value = "";
+    personaDescriptionInput.value = "";
+    personaSystemPromptInput.value = "";
+    personaDrawer.classList.remove("hidden");
+  });
+
+  closePersonaDrawerBtn.addEventListener("click", () => {
+    personaDrawer.classList.add("hidden");
+  });
+
+  // Save Persona Handler
+  savePersonaBtn.addEventListener("click", async () => {
+    const id = editPersonaId.value;
+    const emoji = personaEmojiInput.value.trim() || "🤖";
+    const name = personaNameInput.value.trim();
+    const description = personaDescriptionInput.value.trim();
+    const systemPrompt = personaSystemPromptInput.value.trim();
+
+    if (!name || !systemPrompt) {
+      showToast("Name and System Prompt are required.", "error");
+      return;
+    }
+
+    if (id) {
+      await PersonaManager.update(id, {
+        emoji,
+        name,
+        description,
+        systemPrompt,
+      });
+      showToast("Persona updated successfully!");
+    } else {
+      const persona: Persona = {
+        id: crypto.randomUUID(),
+        emoji,
+        name,
+        description,
+        systemPrompt,
+        timestamp: Date.now(),
+      };
+      await PersonaManager.save(persona);
+      showToast("Persona created successfully!");
+    }
+
+    personaDrawer.classList.add("hidden");
+    await refreshAll();
   });
 
   // Export back-up handler
@@ -302,6 +418,8 @@ async function initialize() {
       }
     }
 
+    const personaId = editStashPersonaSelect.value || undefined;
+
     const stashes = await StashManager.getAll();
     const stash = stashes.find((s) => s.id === id);
     if (stash) {
@@ -314,6 +432,7 @@ async function initialize() {
         tags,
         autoTrigger,
         text,
+        personaId,
       });
 
       editDrawer.classList.add("hidden");
@@ -331,7 +450,114 @@ async function initialize() {
 async function refreshAll() {
   await loadStats();
   await loadAnalytics();
-  await renderStashes();
+  await populatePersonaDropdowns();
+  if (activeTab === "stashes") {
+    await renderStashes();
+  } else {
+    await renderPersonas();
+  }
+}
+
+async function populatePersonaDropdowns() {
+  const personas = await PersonaManager.getAll();
+  const currentStashVal = stashPersonaSelect.value;
+  const currentEditVal = editStashPersonaSelect.value;
+
+  const optionsHtml = [
+    '<option value="">None (No system instructions)</option>',
+    ...personas.map((p) => `<option value="${p.id}">${escapeHtml(p.emoji)} ${escapeHtml(p.name)}</option>`)
+  ].join("\n");
+
+  stashPersonaSelect.innerHTML = optionsHtml;
+  editStashPersonaSelect.innerHTML = optionsHtml;
+
+  stashPersonaSelect.value = currentStashVal;
+  editStashPersonaSelect.value = currentEditVal;
+}
+
+async function renderPersonas() {
+  let personas = await PersonaManager.getAll();
+
+  if (currentSearch) {
+    personas = SemanticSearch.search(personas, currentSearch, (p) => ({
+      title: p.name,
+      text: p.systemPrompt,
+      tags: [p.description || ""]
+    }));
+  }
+
+  personasList.innerHTML = "";
+
+  if (personas.length === 0) {
+    personasList.innerHTML = `
+      <div class="empty-state">
+        <svg class="empty-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="8" y1="12" x2="16" y2="12"></line>
+        </svg>
+        <h4>No personas found</h4>
+        <p>${currentSearch ? "Refine your search parameters." : "Add a new AI Persona to customize context!"}</p>
+      </div>
+    `;
+    return;
+  }
+
+  personas.forEach((persona) => {
+    const card = document.createElement("div");
+    card.className = "persona-card";
+    card.innerHTML = `
+      <div class="persona-emoji">${escapeHtml(persona.emoji)}</div>
+      <div class="persona-info">
+        <div class="persona-name">${escapeHtml(persona.name)}</div>
+        <div class="persona-desc">${escapeHtml(persona.description || "No description provided.")}</div>
+        <div class="persona-badge">System Persona</div>
+      </div>
+      <div class="card-actions">
+        <button class="edit-btn icon-only-btn" title="Edit Persona">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 20h9"></path>
+            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+          </svg>
+        </button>
+        <button class="delete-btn icon-only-btn" title="Delete Persona">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            <line x1="10" y1="11" x2="10" y2="17"></line>
+            <line x1="14" y1="11" x2="14" y2="17"></line>
+          </svg>
+        </button>
+      </div>
+    `;
+
+    const editBtn = card.querySelector(".edit-btn") as HTMLButtonElement;
+    editBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openPersonaEditDrawer(persona);
+    });
+
+    const deleteBtn = card.querySelector(".delete-btn") as HTMLButtonElement;
+    deleteBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      if (confirm(`Are you sure you want to delete the "${persona.name}" persona?`)) {
+        await PersonaManager.delete(persona.id);
+        showToast("Persona deleted.");
+        await refreshAll();
+      }
+    });
+
+    personasList.appendChild(card);
+  });
+}
+
+function openPersonaEditDrawer(persona: Persona) {
+  personaDrawerTitle.textContent = "Edit Persona";
+  editPersonaId.value = persona.id;
+  personaEmojiInput.value = persona.emoji;
+  personaNameInput.value = persona.name;
+  personaDescriptionInput.value = persona.description || "";
+  personaSystemPromptInput.value = persona.systemPrompt;
+  personaDrawer.classList.remove("hidden");
 }
 
 async function loadStats() {
@@ -448,9 +674,19 @@ async function executeStashAction(stash: Stash, action: "inject" | "copy", custo
     } catch (e) {}
   }
 
+  let systemPrompt: string | undefined = undefined;
+  if (stash.personaId) {
+    const personas = await PersonaManager.getAll();
+    const persona = personas.find((p) => p.id === stash.personaId);
+    if (persona) {
+      systemPrompt = persona.systemPrompt;
+    }
+  }
+
   const resolvedText = await PackagingEngine.resolve(stash.text, {
     ...context,
-    customValues
+    customValues,
+    systemPrompt
   });
 
   if (action === "inject") {
@@ -498,7 +734,11 @@ async function renderStashes() {
   let stashes = await StashManager.getAll();
 
   if (currentSearch) {
-    stashes = SemanticSearch.search(stashes, currentSearch);
+    stashes = SemanticSearch.search(stashes, currentSearch, (s) => ({
+      title: s.title,
+      text: s.text,
+      tags: s.tags
+    }));
   }
 
   stashList.innerHTML = "";
@@ -624,6 +864,7 @@ function openEditDrawer(stash: Stash) {
   editTagsInput.value = (stash.tags || []).join(", ");
   editAutoTriggerInput.value = stash.autoTrigger || "";
   editContentInput.value = stash.text;
+  editStashPersonaSelect.value = stash.personaId || "";
   
   editLength.textContent = stash.text.length.toString();
   editTokens.textContent = TokenEstimator.estimate(stash.text).toString();

@@ -17,18 +17,20 @@ export class SemanticSearch {
    * Performs a local relevance-based semantic search scoring stashes using a hybrid 
    * TF-IDF & Field-Weighted keyword scoring model.
    */
-  static search<T extends { title: string; text: string; tags: string[] }>(
+  static search<T>(
     items: T[],
-    query: string
+    query: string,
+    extractor: (item: T) => { title: string; text: string; tags?: string[] }
   ): T[] {
     const queryTokens = this.tokenize(query);
     if (queryTokens.length === 0) return items;
 
     // 1. Tokenize all documents and fields
     const docsTokens = items.map((item) => {
-      const titleTokens = this.tokenize(item.title);
-      const textTokens = this.tokenize(item.text);
-      const tagTokens = (item.tags || []).flatMap((t) => this.tokenize(t));
+      const extracted = extractor(item);
+      const titleTokens = this.tokenize(extracted.title);
+      const textTokens = this.tokenize(extracted.text);
+      const tagTokens = (extracted.tags || []).flatMap((t) => this.tokenize(t));
       
       const allTokens = [...titleTokens, ...textTokens, ...tagTokens];
       const uniqueTokens = new Set(allTokens);

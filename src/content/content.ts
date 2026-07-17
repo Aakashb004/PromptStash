@@ -649,7 +649,11 @@ function ensureOverlayCreated() {
   // Search input change filtering
   searchInput.addEventListener("input", () => {
     const query = searchInput.value;
-    filteredStashes = SemanticSearch.search(activeStashes, query);
+    filteredStashes = SemanticSearch.search(activeStashes, query, (s) => ({
+      title: s.title,
+      text: s.text,
+      tags: s.tags
+    }));
     selectedIndex = 0;
     renderOverlayList();
   });
@@ -673,7 +677,11 @@ function ensureOverlayCreated() {
         const stash = filteredStashes[selectedIndex];
         try {
           const context = await gatherPageContext();
-          const resolvedText = await PackagingEngine.resolve(stash.text, context);
+          const systemPrompt = await getPersonaSystemPrompt(stash.personaId);
+          const resolvedText = await PackagingEngine.resolve(stash.text, {
+            ...context,
+            systemPrompt
+          });
           await navigator.clipboard.writeText(resolvedText);
           showInlineToast("Copied to clipboard!");
         } catch (err) {
@@ -896,6 +904,19 @@ Browser.runtime.onMessage.addListener((message: any, sender: any, sendResponse: 
   return true;
 });
 
+async function getPersonaSystemPrompt(personaId?: string): Promise<string | undefined> {
+  if (!personaId) return undefined;
+  try {
+    const result = await Browser.storage.local.get({ personas: [] });
+    const personas = result.personas as any[];
+    const persona = personas.find(p => p.id === personaId);
+    return persona ? persona.systemPrompt : undefined;
+  } catch (err) {
+    console.warn("Failed to get persona system prompt:", err);
+    return undefined;
+  }
+}
+
 async function getClipboardText(): Promise<string> {
   try {
     return await navigator.clipboard.readText();
@@ -923,7 +944,11 @@ async function handleStashSelection(stash: Stash, mode: "replace" | "append" | "
     showVariablesForm(stash, customVars, mode);
   } else {
     const context = await gatherPageContext();
-    const resolvedText = await PackagingEngine.resolve(stash.text, context);
+    const systemPrompt = await getPersonaSystemPrompt(stash.personaId);
+    const resolvedText = await PackagingEngine.resolve(stash.text, {
+      ...context,
+      systemPrompt
+    });
     
     const inputEl = findPrimaryPromptInput();
     if (inputEl) {
@@ -992,9 +1017,11 @@ function showVariablesForm(stash: Stash, vars: string[], mode: "replace" | "appe
     });
     
     const context = await gatherPageContext();
+    const systemPrompt = await getPersonaSystemPrompt(stash.personaId);
     const resolvedText = await PackagingEngine.resolve(stash.text, {
       ...context,
       customValues,
+      systemPrompt
     });
     
     const inputEl = findPrimaryPromptInput();
@@ -1073,9 +1100,11 @@ async function handleAutoTriggerCheck(target: HTMLElement, e: KeyboardEvent) {
         const textAfterTrigger = val.slice(cursor);
         
         const context = await gatherPageContext();
+        const systemPrompt = await getPersonaSystemPrompt(matchedStash.personaId);
         const replacementText = await PackagingEngine.resolve(matchedStash.text, {
           ...context,
-          customValues
+          customValues,
+          systemPrompt
         });
 
         const newTextVal = textBeforeTrigger + replacementText + textAfterTrigger;

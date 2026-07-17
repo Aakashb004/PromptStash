@@ -29,9 +29,13 @@ export class PackagingEngine {
       selection?: string;
       clipboard?: string;
       customValues?: Record<string, string>;
+      systemPrompt?: string;
     } = {}
   ): Promise<string> {
     let result = template;
+    if (context.systemPrompt) {
+      result = `${context.systemPrompt}\n\n${result}`;
+    }
 
     // 1. Resolve {{date}}
     result = result.replace(/\{\{\s*date\s*\}\}/gi, () => {

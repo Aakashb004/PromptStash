@@ -4,6 +4,15 @@ export interface Version {
   createdAt: number;
 }
 
+export interface Persona {
+  id: string;
+  name: string;
+  description: string;
+  systemPrompt: string;
+  emoji: string;
+  timestamp: number;
+}
+
 export interface Stash {
   id: string;
   title: string;
@@ -14,4 +23,5 @@ export interface Stash {
   usageCount: number;
   timestamp: number;
   versions: Version[];
+  personaId?: string; // Optional bound Persona
 }
