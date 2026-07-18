@@ -6,23 +6,27 @@ export class StashManager {
     const result = await Browser.storage.local.get({
       capsules: [],
     });
-    return result.capsules as Stash[];
+    const stashes = result.capsules as Stash[];
+    return stashes.map((s) => ({
+      ...s,
+      status: s.status || "active",
+    }));
   }
 
   static async save(stash: Stash): Promise<void> {
     const stashes = await this.getAll();
-    stashes.unshift(stash);
+    stashes.unshift({
+      ...stash,
+      status: stash.status || "active",
+    });
     await Browser.storage.local.set({
       capsules: stashes,
     });
   }
 
   static async delete(id: string): Promise<void> {
-    const stashes = await this.getAll();
-    const filtered = stashes.filter((s) => s.id !== id);
-    await Browser.storage.local.set({
-      capsules: filtered,
-    });
+    // Legacy delete moves to trash instead of permanent deletion!
+    await this.updateStatus(id, "trash");
   }
 
   static async toggleFavorite(id: string): Promise<void> {
@@ -64,6 +68,28 @@ export class StashManager {
     });
     await Browser.storage.local.set({
       capsules: updated,
+    });
+  }
+
+  static async updateStatus(id: string, status: "active" | "archived" | "trash"): Promise<void> {
+    const stashes = await this.getAll();
+    const updated = stashes.map((stash) => {
+      if (stash.id !== id) return stash;
+      return {
+        ...stash,
+        status,
+      };
+    });
+    await Browser.storage.local.set({
+      capsules: updated,
+    });
+  }
+
+  static async permanentlyDelete(id: string): Promise<void> {
+    const stashes = await this.getAll();
+    const filtered = stashes.filter((stash) => stash.id !== id);
+    await Browser.storage.local.set({
+      capsules: filtered,
     });
   }
 }

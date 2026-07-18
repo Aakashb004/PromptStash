@@ -1,7 +1,8 @@
 import Browser from "../adapters/browser";
 import { StashManager } from "../storage/stashManager";
 import { PersonaManager } from "../storage/personaManager";
-import { Stash, Persona } from "../types";
+import { FolderManager } from "../storage/folderManager";
+import { Stash, Persona, Folder } from "../types";
 import { VersionManager } from "../storage/versionManager";
 import { PackagingEngine } from "../utils/packagingEngine";
 import { TokenEstimator } from "../utils/tokenEstimator";
@@ -82,7 +83,16 @@ const personaDrawerTitle = document.getElementById("personaDrawerTitle") as HTML
 const stashPersonaSelect = document.getElementById("stashPersona") as HTMLSelectElement;
 const editStashPersonaSelect = document.getElementById("editStashPersona") as HTMLSelectElement;
 
+// Folder UI elements
+const stashFolderSelect = document.getElementById("stashFolder") as HTMLSelectElement;
+const editStashFolderSelect = document.getElementById("editStashFolder") as HTMLSelectElement;
+const addFolderBtn = document.getElementById("addFolderBtn") as HTMLButtonElement;
+const editAddFolderBtn = document.getElementById("editAddFolderBtn") as HTMLButtonElement;
+const filterChipsContainer = document.getElementById("filterChips") as HTMLDivElement;
+
 let activeTab: "stashes" | "personas" = "stashes";
+let activeFilterType: "all" | "pinned" | "folder" | "status" = "all";
+let activeFilterValue: string = "";
 let currentSearch = "";
 
 // Custom Toast notification helper
@@ -170,6 +180,7 @@ async function initialize() {
     }
 
     const personaId = stashPersonaSelect.value || undefined;
+    const folderId = stashFolderSelect.value || undefined;
 
     const stash: Stash = {
       id: crypto.randomUUID(),
@@ -188,6 +199,8 @@ async function initialize() {
         },
       ],
       personaId,
+      folderId,
+      status: "active",
     };
 
     await StashManager.save(stash);
@@ -198,6 +211,7 @@ async function initialize() {
     tagsInput.value = "";
     autoTriggerInput.value = "";
     stashPersonaSelect.value = "";
+    stashFolderSelect.value = "";
     createLength.textContent = "0";
     createTokens.textContent = "0";
 
@@ -377,6 +391,16 @@ async function initialize() {
     editDrawer.classList.add("hidden");
   });
 
+  // Folder creation trigger
+  addFolderBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    handleCreateFolder();
+  });
+  editAddFolderBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    handleCreateFolder();
+  });
+
   // Counter live updates for Create Prompt
   contentInput.addEventListener("input", () => {
     const text = contentInput.value;
@@ -419,6 +443,7 @@ async function initialize() {
     }
 
     const personaId = editStashPersonaSelect.value || undefined;
+    const folderId = editStashFolderSelect.value || undefined;
 
     const stashes = await StashManager.getAll();
     const stash = stashes.find((s) => s.id === id);
@@ -433,6 +458,7 @@ async function initialize() {
         autoTrigger,
         text,
         personaId,
+        folderId,
       });
 
       editDrawer.classList.add("hidden");
@@ -451,6 +477,8 @@ async function refreshAll() {
   await loadStats();
   await loadAnalytics();
   await populatePersonaDropdowns();
+  await populateFolderDropdowns();
+  await renderFilterChips();
   if (activeTab === "stashes") {
     await renderStashes();
   } else {
@@ -732,13 +760,35 @@ async function executeStashAction(stash: Stash, action: "inject" | "copy", custo
 // Render dynamic lists
 async function renderStashes() {
   let stashes = await StashManager.getAll();
+  const folders = await FolderManager.getAll();
 
+  // 1. Filter by search query if any
   if (currentSearch) {
     stashes = SemanticSearch.search(stashes, currentSearch, (s) => ({
       title: s.title,
       text: s.text,
       tags: s.tags
     }));
+  }
+
+  // 2. Filter by status / folder / pinning
+  if (activeFilterType === "all") {
+    stashes = stashes.filter((s) => s.status === "active");
+  } else if (activeFilterType === "pinned") {
+    stashes = stashes.filter((s) => s.status === "active" && s.favorite);
+  } else if (activeFilterType === "folder") {
+    stashes = stashes.filter((s) => s.status === "active" && s.folderId === activeFilterValue);
+  } else if (activeFilterType === "status") {
+    stashes = stashes.filter((s) => s.status === activeFilterValue);
+  }
+
+  // 3. Sort Pinned (Favorites) to the top unless strictly in pinned or status views
+  if (activeFilterType !== "pinned" && activeFilterType !== "status") {
+    stashes.sort((a, b) => {
+      if (a.favorite && !b.favorite) return -1;
+      if (!a.favorite && b.favorite) return 1;
+      return b.timestamp - a.timestamp;
+    });
   }
 
   stashList.innerHTML = "";
@@ -765,52 +815,99 @@ async function renderStashes() {
       .map((tag) => `<span class="tag-badge">${escapeHtml(tag)}</span>`)
       .join("");
 
+    let folderBadge = "";
+    if (stash.folderId) {
+      const folder = folders.find((f) => f.id === stash.folderId);
+      if (folder) {
+        folderBadge = `<span class="card-folder-badge">${escapeHtml(folder.emoji)} ${escapeHtml(folder.name)}</span>`;
+      }
+    }
+
+    let statusBadge = "";
+    if (stash.status && stash.status !== "active") {
+      statusBadge = `<span class="card-status-badge ${stash.status}">${stash.status}</span>`;
+    }
+
+    let actionButtons = "";
+    if (stash.status === "trash") {
+      actionButtons = `
+        <button class="restore-trash icon-btn" title="Restore Prompt">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+            <polyline points="3 3 3 8 8 8"></polyline>
+          </svg>
+        </button>
+        <button class="permanent-delete icon-btn" title="Permanently Delete">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+        </button>
+      `;
+    } else {
+      const isArchived = stash.status === "archived";
+      actionButtons = `
+        <button class="action-btn inject" title="Inject Prompt">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </button>
+        <button class="action-btn copy" title="Copy to Clipboard">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+        </button>
+        <button class="action-btn edit" title="Edit Stash">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 20h9"></path>
+            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+          </svg>
+        </button>
+        <button class="action-btn archive" title="${isArchived ? "Unarchive Prompt" : "Archive Prompt"}">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="21 8 21 21 3 21 3 8"></polyline>
+            <rect x="1" y="3" width="22" height="5"></rect>
+            <line x1="10" y1="12" x2="14" y2="12"></line>
+          </svg>
+        </button>
+        <button class="action-btn delete" title="Move to Trash">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            <line x1="10" y1="11" x2="10" y2="17"></line>
+            <line x1="14" y1="11" x2="14" y2="17"></line>
+          </svg>
+        </button>
+      `;
+    }
+
     card.innerHTML = `
       <div class="card-header">
         <div class="card-title-area">
-          <span class="card-favorite-star ${stash.favorite ? "active" : ""}" title="Favorite">
+          <span class="card-favorite-star card-pin-btn ${stash.favorite ? "pinned" : ""}" title="Favorite">
             ${stash.favorite ? "★" : "☆"}
           </span>
           <span class="card-title" title="${escapeHtml(stash.title)}">${escapeHtml(stash.title)}</span>
         </div>
         <div class="card-actions">
-          <button class="action-btn inject" title="Inject Prompt">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <polyline points="9 18 15 12 9 6"></polyline>
-            </svg>
-          </button>
-          <button class="action-btn copy" title="Copy to Clipboard">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-            </svg>
-          </button>
-          <button class="action-btn edit" title="Edit Stash">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 20h9"></path>
-              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
-            </svg>
-          </button>
-          <button class="action-btn delete" title="Delete Stash">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="3 6 5 6 21 6"></polyline>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-              <line x1="10" y1="11" x2="10" y2="17"></line>
-              <line x1="14" y1="11" x2="14" y2="17"></line>
-            </svg>
-          </button>
+          ${actionButtons}
         </div>
       </div>
       <div class="card-content">${escapeHtml(stash.text)}</div>
       <div class="card-footer">
-        <div class="card-tags">${tagsHtml}</div>
+        <div class="card-tags">
+          ${folderBadge}
+          ${statusBadge}
+          ${tagsHtml}
+        </div>
         <span class="card-usage">${stash.usageCount} ${stash.usageCount === 1 ? "use" : "uses"} • ${TokenEstimator.estimate(stash.text)} tokens</span>
       </div>
     `;
 
-    // Click card body triggers copy/inject
+    // Click card body triggers copy/inject (only if not trashed)
     card.addEventListener("click", (e) => {
-      // Prevent trigger when clicking action buttons or favorite stars
+      if (stash.status === "trash") return;
       const target = e.target as HTMLElement;
       if (target.closest(".card-actions") || target.closest(".card-favorite-star")) {
         return;
@@ -824,38 +921,133 @@ async function renderStashes() {
       e.stopPropagation();
       await StashManager.toggleFavorite(stash.id);
       await refreshAll();
-      showToast(stash.favorite ? "Removed from Favorites" : "Added to Favorites");
+      showToast(stash.favorite ? "Removed from Pinned" : "Pinned to top");
     });
 
-    // Direct actions
-    const injectBtn = card.querySelector(".inject") as HTMLButtonElement;
-    injectBtn.addEventListener("click", async (e) => {
-      e.stopPropagation();
-      processStashAction(stash, "inject");
-    });
+    // Action handlers depending on status
+    if (stash.status === "trash") {
+      const restoreTrashBtn = card.querySelector(".restore-trash") as HTMLButtonElement;
+      restoreTrashBtn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        await StashManager.updateStatus(stash.id, "active");
+        showToast("Prompt restored to active!");
+        await refreshAll();
+      });
 
-    const copyBtn = card.querySelector(".copy") as HTMLButtonElement;
-    copyBtn.addEventListener("click", async (e) => {
-      e.stopPropagation();
-      processStashAction(stash, "copy");
-    });
+      const permDeleteBtn = card.querySelector(".permanent-delete") as HTMLButtonElement;
+      permDeleteBtn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        if (confirm(`Are you sure you want to permanently delete "${stash.title}"?`)) {
+          await StashManager.permanentlyDelete(stash.id);
+          showToast("Prompt permanently deleted.");
+          await refreshAll();
+        }
+      });
+    } else {
+      const injectBtn = card.querySelector(".inject") as HTMLButtonElement;
+      injectBtn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        processStashAction(stash, "inject");
+      });
 
-    const editBtn = card.querySelector(".edit") as HTMLButtonElement;
-    editBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      openEditDrawer(stash);
-    });
+      const copyBtn = card.querySelector(".copy") as HTMLButtonElement;
+      copyBtn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        processStashAction(stash, "copy");
+      });
 
-    const deleteBtn = card.querySelector(".delete") as HTMLButtonElement;
-    deleteBtn.addEventListener("click", async (e) => {
-      e.stopPropagation();
-      await StashManager.delete(stash.id);
-      await refreshAll();
-      showToast("Prompt deleted.");
-    });
+      const editBtn = card.querySelector(".edit") as HTMLButtonElement;
+      editBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openEditDrawer(stash);
+      });
+
+      const archiveBtn = card.querySelector(".archive") as HTMLButtonElement;
+      archiveBtn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const isArchived = stash.status === "archived";
+        await StashManager.updateStatus(stash.id, isArchived ? "active" : "archived");
+        showToast(isArchived ? "Prompt unarchived" : "Prompt archived");
+        await refreshAll();
+      });
+
+      const deleteBtn = card.querySelector(".delete") as HTMLButtonElement;
+      deleteBtn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        await StashManager.updateStatus(stash.id, "trash");
+        showToast("Moved prompt to Trash.");
+        await refreshAll();
+      });
+    }
 
     stashList.appendChild(card);
   });
+}
+
+async function populateFolderDropdowns() {
+  const folders = await FolderManager.getAll();
+  const currentStashVal = stashFolderSelect.value;
+  const currentEditVal = editStashFolderSelect.value;
+
+  const optionsHtml = [
+    '<option value="">None (No folder)</option>',
+    ...folders.map((f) => `<option value="${f.id}">${escapeHtml(f.emoji)} ${escapeHtml(f.name)}</option>`)
+  ].join("\n");
+
+  stashFolderSelect.innerHTML = optionsHtml;
+  editStashFolderSelect.innerHTML = optionsHtml;
+
+  stashFolderSelect.value = currentStashVal;
+  editStashFolderSelect.value = currentEditVal;
+}
+
+async function renderFilterChips() {
+  if (activeTab !== "stashes") {
+    filterChipsContainer.parentElement?.classList.add("hidden");
+    return;
+  }
+  filterChipsContainer.parentElement?.classList.remove("hidden");
+
+  const folders = await FolderManager.getAll();
+  filterChipsContainer.innerHTML = "";
+
+  const chips = [
+    { type: "all", value: "", label: "✨ All" },
+    { type: "pinned", value: "", label: "⭐ Pinned" },
+    ...folders.map((f) => ({ type: "folder", value: f.id, label: `${f.emoji} ${f.name}` })),
+    { type: "status", value: "archived", label: "📦 Archived" },
+    { type: "status", value: "trash", label: "🗑️ Trash" }
+  ];
+
+  chips.forEach((c) => {
+    const active = activeFilterType === c.type && activeFilterValue === c.value;
+    const btn = document.createElement("button");
+    btn.className = `chip ${active ? "active" : ""}`;
+    btn.textContent = c.label;
+    btn.addEventListener("click", () => {
+      activeFilterType = c.type as any;
+      activeFilterValue = c.value;
+      refreshAll();
+    });
+    filterChipsContainer.appendChild(btn);
+  });
+}
+
+async function handleCreateFolder() {
+  const name = prompt("Enter folder name (e.g. Work, Writing):");
+  if (!name) return;
+  const emoji = prompt("Enter folder emoji icon (e.g. 💼, 📝):") || "📁";
+  
+  const folder: Folder = {
+    id: crypto.randomUUID(),
+    name,
+    emoji,
+    timestamp: Date.now(),
+  };
+
+  await FolderManager.save(folder);
+  showToast("Folder created successfully!");
+  await refreshAll();
 }
 
 function openEditDrawer(stash: Stash) {
@@ -865,6 +1057,7 @@ function openEditDrawer(stash: Stash) {
   editAutoTriggerInput.value = stash.autoTrigger || "";
   editContentInput.value = stash.text;
   editStashPersonaSelect.value = stash.personaId || "";
+  editStashFolderSelect.value = stash.folderId || "";
   
   editLength.textContent = stash.text.length.toString();
   editTokens.textContent = TokenEstimator.estimate(stash.text).toString();

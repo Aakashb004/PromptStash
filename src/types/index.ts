@@ -13,6 +13,13 @@ export interface Persona {
   timestamp: number;
 }
 
+export interface Folder {
+  id: string;
+  name: string;
+  emoji: string;
+  timestamp: number;
+}
+
 export interface Stash {
   id: string;
   title: string;
@@ -24,4 +31,6 @@ export interface Stash {
   timestamp: number;
   versions: Version[];
   personaId?: string; // Optional bound Persona
+  folderId?: string;  // Optional folder ID
+  status?: "active" | "archived" | "trash"; // Stash state status
 }
