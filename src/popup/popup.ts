@@ -7,6 +7,7 @@ import { VersionManager } from "../storage/versionManager";
 import { PackagingEngine } from "../utils/packagingEngine";
 import { TokenEstimator } from "../utils/tokenEstimator";
 import { SemanticSearch } from "../utils/semanticSearch";
+import { GeminiHelper } from "../utils/geminiHelper";
 
 // Inputs
 const titleInput = document.getElementById("title") as HTMLInputElement;
@@ -89,6 +90,23 @@ const editStashFolderSelect = document.getElementById("editStashFolder") as HTML
 const addFolderBtn = document.getElementById("addFolderBtn") as HTMLButtonElement;
 const editAddFolderBtn = document.getElementById("editAddFolderBtn") as HTMLButtonElement;
 const filterChipsContainer = document.getElementById("filterChips") as HTMLDivElement;
+
+// Settings elements
+const toggleSettingsDrawerBtn = document.getElementById("toggleSettingsDrawerBtn") as HTMLButtonElement;
+const settingsDrawer = document.getElementById("settingsDrawer") as HTMLDivElement;
+const closeSettingsDrawerBtn = document.getElementById("closeSettingsDrawerBtn") as HTMLButtonElement;
+const geminiApiKeyInput = document.getElementById("geminiApiKey") as HTMLInputElement;
+const saveSettingsBtn = document.getElementById("saveSettingsBtn") as HTMLButtonElement;
+
+// AI action buttons - Create drawer
+const aiAutoTagBtn = document.getElementById("aiAutoTagBtn") as HTMLButtonElement;
+const aiImproveBtn = document.getElementById("aiImproveBtn") as HTMLButtonElement;
+const aiShortenBtn = document.getElementById("aiShortenBtn") as HTMLButtonElement;
+
+// AI action buttons - Edit drawer
+const editAiAutoTagBtn = document.getElementById("editAiAutoTagBtn") as HTMLButtonElement;
+const editAiImproveBtn = document.getElementById("editAiImproveBtn") as HTMLButtonElement;
+const editAiShortenBtn = document.getElementById("editAiShortenBtn") as HTMLButtonElement;
 
 let activeTab: "stashes" | "personas" = "stashes";
 let activeFilterType: "all" | "pinned" | "folder" | "status" = "all";
@@ -467,6 +485,104 @@ async function initialize() {
     } else {
       showToast("Prompt not found.", "error");
     }
+  });
+
+  // Load settings key
+  GeminiHelper.getApiKey().then((key) => {
+    geminiApiKeyInput.value = key;
+  });
+
+  // Settings Drawer Toggle
+  toggleSettingsDrawerBtn.addEventListener("click", () => {
+    settingsDrawer.classList.remove("hidden");
+  });
+  closeSettingsDrawerBtn.addEventListener("click", () => {
+    settingsDrawer.classList.add("hidden");
+  });
+
+  // Save Settings
+  saveSettingsBtn.addEventListener("click", async () => {
+    const key = geminiApiKeyInput.value.trim();
+    await GeminiHelper.setApiKey(key);
+    showToast("Settings saved successfully!");
+    settingsDrawer.classList.add("hidden");
+  });
+
+  // AI action runner helper
+  async function runAiAction(
+    btn: HTMLButtonElement,
+    textarea: HTMLTextAreaElement,
+    action: (text: string) => Promise<string>,
+    onComplete: (result: string) => void
+  ) {
+    const text = textarea.value.trim();
+    if (!text) {
+      showToast("Please enter some prompt content first.", "error");
+      return;
+    }
+
+    btn.disabled = true;
+    btn.classList.add("loading");
+
+    try {
+      const result = await action(text);
+      onComplete(result);
+      showToast("AI action completed!");
+    } catch (err: any) {
+      console.error(err);
+      showToast(err.message || "Failed to process AI action.", "error");
+    } finally {
+      btn.disabled = false;
+      btn.classList.remove("loading");
+    }
+  }
+
+  // Create Drawer AI action listeners
+  aiAutoTagBtn.addEventListener("click", () => {
+    runAiAction(aiAutoTagBtn, contentInput, GeminiHelper.autoTag.bind(GeminiHelper), (res) => {
+      tagsInput.value = res;
+    });
+  });
+
+  aiImproveBtn.addEventListener("click", () => {
+    runAiAction(aiImproveBtn, contentInput, GeminiHelper.improve.bind(GeminiHelper), (res) => {
+      contentInput.value = res;
+      createLength.textContent = res.length.toString();
+      createTokens.textContent = TokenEstimator.estimate(res).toString();
+    });
+  });
+
+  aiShortenBtn.addEventListener("click", () => {
+    runAiAction(aiShortenBtn, contentInput, GeminiHelper.shorten.bind(GeminiHelper), (res) => {
+      contentInput.value = res;
+      createLength.textContent = res.length.toString();
+      createTokens.textContent = TokenEstimator.estimate(res).toString();
+    });
+  });
+
+  // Edit Drawer AI action listeners
+  editAiAutoTagBtn.addEventListener("click", () => {
+    runAiAction(editAiAutoTagBtn, editContentInput, GeminiHelper.autoTag.bind(GeminiHelper), (res) => {
+      editTagsInput.value = res;
+    });
+  });
+
+  // Edit Drawer AI improve
+  editAiImproveBtn.addEventListener("click", () => {
+    runAiAction(editAiImproveBtn, editContentInput, GeminiHelper.improve.bind(GeminiHelper), (res) => {
+      editContentInput.value = res;
+      editLength.textContent = res.length.toString();
+      editTokens.textContent = TokenEstimator.estimate(res).toString();
+    });
+  });
+
+  // Edit Drawer AI shorten
+  editAiShortenBtn.addEventListener("click", () => {
+    runAiAction(editAiShortenBtn, editContentInput, GeminiHelper.shorten.bind(GeminiHelper), (res) => {
+      editContentInput.value = res;
+      editLength.textContent = res.length.toString();
+      editTokens.textContent = TokenEstimator.estimate(res).toString();
+    });
   });
 
   // Initial load
@@ -871,6 +987,14 @@ async function renderStashes() {
             <line x1="10" y1="12" x2="14" y2="12"></line>
           </svg>
         </button>
+        <button class="action-btn duplicate" title="Duplicate Prompt">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <line x1="15" y1="12" x2="15" y2="18"></line>
+            <line x1="12" y1="15" x2="18" y2="15"></line>
+          </svg>
+        </button>
         <button class="action-btn delete" title="Move to Trash">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="3 6 5 6 21 6"></polyline>
@@ -968,6 +1092,29 @@ async function renderStashes() {
         const isArchived = stash.status === "archived";
         await StashManager.updateStatus(stash.id, isArchived ? "active" : "archived");
         showToast(isArchived ? "Prompt unarchived" : "Prompt archived");
+        await refreshAll();
+      });
+
+      const duplicateBtn = card.querySelector(".duplicate") as HTMLButtonElement;
+      duplicateBtn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const duplicated: Stash = {
+          ...stash,
+          id: crypto.randomUUID(),
+          title: `${stash.title} (Copy)`,
+          timestamp: Date.now(),
+          favorite: false,
+          usageCount: 0,
+          versions: [
+            {
+              version: 1,
+              text: stash.text,
+              createdAt: Date.now()
+            }
+          ]
+        };
+        await StashManager.save(duplicated);
+        showToast("Prompt duplicated successfully!");
         await refreshAll();
       });
 

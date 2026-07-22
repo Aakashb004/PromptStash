@@ -32,6 +32,12 @@
           </svg>
           Add Persona
         </button>
+        <button id="toggleSettingsDrawerBtn" class="icon-only-btn" title="Settings">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
       </div>
     </header>
 
@@ -91,6 +97,11 @@
           <div class="form-group">
             <label for="content">Prompt Template</label>
             <textarea id="content" rows="6" placeholder="Write your prompt content..."></textarea>
+            <div class="ai-actions-row">
+              <button id="aiAutoTagBtn" class="ai-action-btn" type="button">✨ Auto-Tag</button>
+              <button id="aiImproveBtn" class="ai-action-btn" type="button">✨ Improve</button>
+              <button id="aiShortenBtn" class="ai-action-btn" type="button">✨ Shorten</button>
+            </div>
             <div class="counter-label"><span id="createLength">0</span> chars | <span id="createTokens">0</span> tokens</div>
           </div>
           <button id="saveBtn" class="primary-btn">
@@ -174,6 +185,11 @@
           <div class="form-group">
             <label for="editContent">Prompt Template</label>
             <textarea id="editContent" rows="5" placeholder="Write your prompt content..."></textarea>
+            <div class="ai-actions-row">
+              <button id="editAiAutoTagBtn" class="ai-action-btn" type="button">✨ Auto-Tag</button>
+              <button id="editAiImproveBtn" class="ai-action-btn" type="button">✨ Improve</button>
+              <button id="editAiShortenBtn" class="ai-action-btn" type="button">✨ Shorten</button>
+            </div>
             <div class="counter-label"><span id="editLength">0</span> chars | <span id="editTokens">0</span> tokens</div>
           </div>
           
@@ -311,6 +327,30 @@
       </div>
       <div id="stashCount" class="footer-count">0 Stashes</div>
     </footer>
+    <!-- Settings Drawer -->
+    <div id="settingsDrawer" class="drawer-overlay hidden">
+      <div class="drawer-content">
+        <div class="drawer-header">
+          <h2>Settings</h2>
+          <button id="closeSettingsDrawerBtn" class="close-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        <div class="drawer-body">
+          <div class="form-group">
+            <label for="geminiApiKey">Gemini API Key</label>
+            <input id="geminiApiKey" type="password" placeholder="AI Studio API Key">
+            <div class="input-hint">Used for AI features (Auto-Tag, Improve Prompt, Shorten). Get a key from Google AI Studio.</div>
+          </div>
+          <button id="saveSettingsBtn" class="primary-btn">
+            Save Settings
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script type="module" src="./popup.ts"></script>
